@@ -1,0 +1,52 @@
+/* ============================================================
+   Design tokens. Semantic names only — never scatter raw hex
+   in components. Light is default; [data-theme="dark"] overrides.
+   ============================================================ */
+:root {
+  --color-primary: #FF5A14;
+  --color-primary-hover: #F56B2F;
+  --color-button: #FF7A45;
+  --color-background: #FFFFFF;
+  --color-surface: #FFFFFF;
+  --color-surface-elevated: #FFF7F2;
+  --color-input: #FFF7F2;
+  --color-border: #D8D8D8;
+  --color-border-orange: #FF8A55;
+  --color-text-primary: #000000;
+  --color-text-secondary: #888888;
+  --color-placeholder: #B0B0B0;
+  --color-white: #FFFFFF;
+
+  --color-success: #16A34A;
+  --color-warning: #D97706;
+  --color-error: #DC2626;
+  --color-info: #2563EB;
+
+  --shadow-neu: 6px 6px 16px rgba(0,0,0,0.06), -6px -6px 16px rgba(255,255,255,0.7);
+  --shadow-neu-inset: inset 3px 3px 8px rgba(0,0,0,0.06), inset -3px -3px 8px rgba(255,255,255,0.6);
+  --radius: 14px;
+}
+
+[data-theme="dark"] {
+  --color-primary: #FF5A14;
+  --color-primary-hover: #F56B2F;
+  --color-button: #FF7A45;
+  --color-background: #0F1115;
+  --color-surface: #171A21;
+  --color-surface-elevated: #1D2129;
+  --color-input: #20242C;
+  --color-border: #303641;
+  --color-border-orange: #FF8A55;
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #A5A9B2;
+  --color-placeholder: #6F7480;
+  --color-white: #FFFFFF;
+
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+  --color-info: #3B82F6;
+
+  --shadow-neu: 6px 6px 16px rgba(0,0,0,0.5), -4px -4px 12px rgba(255,255,255,0.02);
+  --shadow-neu-inset: inset 3px 3px 8px rgba(0,0,0,0.5), inset -3px -3px 8px rgba(255,255,255,0.02);
+}
