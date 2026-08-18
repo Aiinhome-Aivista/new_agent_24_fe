@@ -8,6 +8,20 @@ export interface CreateProjectPayload {
   target_language?: string;
   target_framework?: string;
   coding_standard?: string;
+  git_repo_url?: string;
+  git_provider?: string;
+  git_branch?: string;
+  base_branch?: string;
+  tech_stack?: string;
+  build_tool?: string;
+  app_type?: string;
+  deployment_target?: string;
+  testing_framework?: string;
+  integration_test_framework?: string;
+  mocking_library?: string;
+  target_coverage?: string;
+  frontend_framework?: string;
+  backend_framework?: string;
 }
 
 export const projectApi = {

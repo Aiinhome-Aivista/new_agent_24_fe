@@ -48,8 +48,40 @@ export function ProjectsPage() {
                   </span>
                 </div>
                 <p className="font-display font-semibold text-[var(--color-text-primary)]">{p.name}</p>
-                <p className="font-mono text-xs text-[var(--color-text-secondary)]">{p.key_code}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="font-mono text-xs font-bold text-[var(--color-primary)]">{p.key_code}</span>
+                  {p.git_branch && (
+                    <span className="rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] px-1.5 py-0.2 text-[10px] font-mono text-[var(--color-text-secondary)]">
+                      {p.git_branch}
+                    </span>
+                  )}
+                </div>
                 <p className="mt-2 line-clamp-2 text-sm text-[var(--color-text-secondary)]">{p.description}</p>
+                
+                {/* Tech & Framework Badges */}
+                <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                  {p.target_language && (
+                    <span className="rounded-md bg-[var(--color-primary)]/10 text-[var(--color-primary)] px-1.5 py-0.5 text-[10px] font-semibold uppercase">
+                      {p.target_language}
+                    </span>
+                  )}
+                  {p.backend_framework && p.backend_framework !== "None" && (
+                    <span className="rounded-md bg-[var(--color-surface-elevated)] border border-[var(--color-border)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-text-secondary)]">
+                      {p.backend_framework.split("(")[0].trim()}
+                    </span>
+                  )}
+                  {p.frontend_framework && p.frontend_framework !== "None" && (
+                    <span className="rounded-md bg-[var(--color-primary)]/5 border border-[var(--color-border-orange)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-primary)]">
+                      {p.frontend_framework.split("/")[0].trim()}
+                    </span>
+                  )}
+                  {p.testing_framework && (
+                    <span className="rounded-md bg-[var(--color-surface-elevated)] border border-[var(--color-border)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-text-secondary)]">
+                      {p.testing_framework.split("+")[0].trim()}
+                    </span>
+                  )}
+                </div>
+
                 <div className="mt-3 flex gap-4 text-xs text-[var(--color-text-secondary)]">
                   <span>{p.story_count ?? 0} stories</span>
                   <span>{p.active_workflows ?? 0} active runs</span>
