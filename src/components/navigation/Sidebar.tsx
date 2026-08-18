@@ -14,7 +14,6 @@ import {
   FileCheck2,
   Layers,
   ArrowLeft,
-  Sparkles,
 } from "lucide-react";
 
 // 1. General Navigation (Global Root View)
@@ -23,11 +22,6 @@ const GENERAL_NAV = [
     section: "Overview",
     items: [
       { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    ],
-  },
-  {
-    section: "Workspaces",
-    items: [
       { to: "/app/projects", label: "Projects", icon: FolderKanban },
     ],
   },
@@ -51,12 +45,39 @@ const GENERAL_NAV = [
 export function Sidebar() {
   const location = useLocation();
   const [projectInfo, setProjectInfo] = useState<Project | null>(null);
+  const [inferredProjUuid, setInferredProjUuid] = useState<string | null>(null);
 
   // Detect project UUID from URL path: /app/projects/:uuid or query param ?project=:uuid
   const pathMatch = location.pathname.match(/^\/app\/projects\/([a-zA-Z0-9-]+)/);
   const pathUuid = pathMatch && pathMatch[1] !== "new" ? pathMatch[1] : null;
   const searchUuid = new URLSearchParams(location.search).get("project");
-  const activeProjectUuid = pathUuid || searchUuid;
+
+  // Check if viewing a workflow detail page without explicit ?project= param
+  const workflowMatch = location.pathname.match(/^\/app\/workflows\/([a-zA-Z0-9-]+)/);
+  const workflowId = workflowMatch ? workflowMatch[1] : null;
+
+  useEffect(() => {
+    let isMounted = true;
+    if (workflowId && !searchUuid && !pathUuid) {
+      import("@/services/api/workflowApi").then(({ workflowApi }) => {
+        workflowApi
+          .status(workflowId)
+          .then((st) => {
+            if (isMounted && st.project_uuid) {
+              setInferredProjUuid(st.project_uuid);
+            }
+          })
+          .catch(() => {});
+      });
+    } else {
+      setInferredProjUuid(null);
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [workflowId, searchUuid, pathUuid]);
+
+  const activeProjectUuid = pathUuid || searchUuid || inferredProjUuid;
 
   useEffect(() => {
     let isMounted = true;
@@ -76,6 +97,36 @@ export function Sidebar() {
       isMounted = false;
     };
   }, [activeProjectUuid]);
+
+  // Robust active-item matcher
+  const isNavActive = (targetTo: string) => {
+    const [targetPath, targetQuery] = targetTo.split("?");
+    const currentPath = location.pathname;
+
+    // Exact path matches
+    if (currentPath === targetPath) {
+      if (!targetQuery) return true;
+      const targetParams = new URLSearchParams(targetQuery);
+      const currentParams = new URLSearchParams(location.search);
+      let allMatch = true;
+      targetParams.forEach((val, key) => {
+        if (currentParams.get(key) !== val) allMatch = false;
+      });
+      return allMatch;
+    }
+
+    // Workflows detail view match (e.g. /app/workflows/:id matches /app/workflows)
+    if (targetPath === "/app/workflows" && currentPath.startsWith("/app/workflows/")) {
+      return true;
+    }
+
+    // Project workspace detail match
+    if (targetPath.startsWith("/app/projects/") && currentPath.startsWith(targetPath)) {
+      return true;
+    }
+
+    return false;
+  };
 
   // If inside a project workspace:
   if (activeProjectUuid) {
@@ -112,6 +163,21 @@ export function Sidebar() {
             to: `/app/new-workflow?project=${activeProjectUuid}`,
             label: "New Workflow",
             icon: FileCheck2,
+          },
+        ],
+      },
+      {
+        section: "Governance & Ops",
+        items: [
+          {
+            to: "/app/approvals",
+            label: "Approval Center",
+            icon: ShieldCheck,
+          },
+          {
+            to: "/app/agents",
+            label: "Agent Monitor",
+            icon: Bot,
           },
         ],
       },
@@ -159,9 +225,7 @@ export function Sidebar() {
               <nav className="flex flex-col gap-0.5">
                 {group.items.map((item) => {
                   const Icon = item.icon;
-                  const isCurrent =
-                    location.pathname === item.to ||
-                    (location.pathname + location.search).startsWith(item.to);
+                  const isCurrent = isNavActive(item.to);
                   return (
                     <NavLink
                       key={item.to}
@@ -169,7 +233,7 @@ export function Sidebar() {
                       className={() =>
                         `flex items-center gap-2.5 rounded-[10px] px-3 py-2 text-xs font-medium transition-colors ${
                           isCurrent
-                            ? "bg-[var(--color-surface-elevated)] font-semibold text-[var(--color-primary)] shadow-sm"
+                            ? "bg-[var(--color-surface-elevated)] font-semibold text-[var(--color-primary)] shadow-sm border border-[var(--color-border-orange)]/40"
                             : "text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-elevated)]/40 hover:text-[var(--color-text-primary)]"
                         }`
                       }
@@ -198,14 +262,15 @@ export function Sidebar() {
           <nav className="flex flex-col gap-0.5">
             {group.items.map((item) => {
               const Icon = item.icon;
+              const isCurrent = isNavActive(item.to);
               return (
                 <NavLink
                   key={item.to}
                   to={item.to}
-                  className={({ isActive }) =>
+                  className={() =>
                     `flex items-center gap-2.5 rounded-[10px] px-3 py-2 text-xs font-medium transition-colors ${
-                      isActive
-                        ? "bg-[var(--color-surface-elevated)] font-semibold text-[var(--color-primary)] shadow-sm"
+                      isCurrent
+                        ? "bg-[var(--color-surface-elevated)] font-semibold text-[var(--color-primary)] shadow-sm border border-[var(--color-border-orange)]/40"
                         : "text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-elevated)]/40 hover:text-[var(--color-text-primary)]"
                     }`
                   }

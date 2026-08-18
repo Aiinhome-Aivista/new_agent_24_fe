@@ -678,7 +678,7 @@ export function ProjectDashboardPage() {
                 {workflows.map((w) => (
                   <Link
                     key={w.workflow_id}
-                    to={`/app/workflows/${w.workflow_id}`}
+                    to={`/app/workflows/${w.workflow_id}?project=${project.uuid}`}
                     className="block"
                   >
                     <Card className="flex items-center justify-between p-4 hover:border-[var(--color-primary)] transition-all">

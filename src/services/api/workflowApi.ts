@@ -9,6 +9,12 @@ export const workflowApi = {
   detail: (id: string) =>
     unwrap<{ workflow: WorkflowRun; agent_runs: unknown[] }>(apiClient.get(`/workflows/${id}`)),
   status: (id: string) =>
-    unwrap<{ workflow_id: string; status: string; current_stage: string; current_agent?: string }>(
-      apiClient.get(`/workflows/${id}/status`)),
+    unwrap<{
+      workflow_id: string;
+      status: string;
+      current_stage: string;
+      current_agent?: string;
+      project_uuid?: string;
+      story_title?: string;
+    }>(apiClient.get(`/workflows/${id}/status`)),
 };

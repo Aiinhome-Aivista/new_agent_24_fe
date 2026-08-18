@@ -55,6 +55,7 @@ export interface Story {
   sprint?: string;
   status: string;
   coverage_pct: number;
+  project_uuid?: string;
   project_key?: string;
   project_name?: string;
   acceptance_criteria?: AcceptanceCriterion[];
@@ -100,7 +101,12 @@ export interface WorkflowRun {
   status: WorkflowStatus;
   current_stage: string;
   current_agent?: string;
+  project_uuid?: string;
+  project_name?: string;
+  project_key?: string;
   story_id?: number;
+  story_title?: string;
+  story_key?: string;
   created_at?: string;
 }
 
@@ -119,7 +125,15 @@ export interface Approval {
   workflow_id: string;
   stage: string;
   decision: string;
+  comment?: string;
   requested_at: string;
+  decided_at?: string;
+  approver_id?: number;
+  approver_name?: string;
+  project_uuid?: string;
+  project_name?: string;
+  project_key?: string;
+  story_title?: string;
 }
 
 export interface AgentInfo {

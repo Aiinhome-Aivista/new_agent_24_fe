@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, ReactNode, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
-type Toast = { id: number; kind: "success" | "error" | "info"; message: string };
+type Toast = { id: number; kind: "success" | "error" | "info" | "warning"; message: string };
 const Ctx = createContext<{ notify: (kind: Toast["kind"], message: string) => void } | undefined>(undefined);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -21,7 +21,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <motion.div key={t.id}
               initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 40 }}
               className="surface-elevated px-4 py-3 text-sm min-w-[240px]"
-              style={{ borderLeft: `3px solid var(--color-${t.kind === "success" ? "success" : t.kind === "error" ? "error" : "info"})` }}>
+              style={{ borderLeft: `3px solid var(--color-${t.kind === "success" ? "success" : t.kind === "error" ? "error" : t.kind === "warning" ? "warning" : "info"})` }}>
               {t.message}
             </motion.div>
           ))}

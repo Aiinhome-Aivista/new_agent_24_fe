@@ -132,7 +132,7 @@ export function StoriesPage() {
               <div className="flex items-center gap-3 shrink-0">
                 <StatusBadge status={s.status.toUpperCase()} />
                 <Link
-                  to={`/app/new-workflow?story=${s.uuid}`}
+                  to={`/app/new-workflow?story=${s.uuid}${s.project_uuid || selectedProject ? `&project=${s.project_uuid || selectedProject}` : ""}`}
                   className="flex items-center gap-1 text-xs font-medium text-[var(--color-primary)] bg-[var(--color-primary)]/10 hover:bg-[var(--color-primary)]/20 px-3 py-1.5 rounded-[8px] transition-colors">
                   Start TDD <ArrowRight size={13} />
                 </Link>
