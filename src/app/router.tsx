@@ -5,6 +5,7 @@ import { LandingPage } from "@/features/auth/LandingPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import { ProjectsPage } from "@/features/projects/ProjectsPage";
+import { ProjectDashboardPage } from "@/features/projects/ProjectDashboardPage";
 import { KnowledgePage } from "@/features/knowledge/KnowledgePage";
 import { StoriesPage } from "@/features/stories/StoriesPage";
 import { WorkflowsPage } from "@/features/workflow-runs/WorkflowsPage";
@@ -26,6 +27,7 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="/app/dashboard" replace /> },
       { path: "dashboard", element: <DashboardPage /> },
       { path: "projects", element: <ProjectsPage /> },
+      { path: "projects/:uuid", element: <ProjectDashboardPage /> },
       { path: "knowledge", element: <KnowledgePage /> },
       { path: "stories", element: <StoriesPage /> },
       { path: "workflows", element: <WorkflowsPage /> },

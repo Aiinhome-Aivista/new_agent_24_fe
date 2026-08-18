@@ -1,5 +1,5 @@
 import { apiClient, unwrap } from "./apiClient";
-import type { Project, Story, ApiContract } from "@/types";
+import type { Project, Story, ApiContract, KnowledgeDocument, WorkflowRun } from "@/types";
 
 export interface CreateProjectPayload {
   key_code: string;
@@ -28,7 +28,13 @@ export const projectApi = {
   list: () => unwrap<{ projects: Project[] }>(apiClient.get("/projects")),
 
   detail: (uuid: string) =>
-    unwrap<{ project: Project; stories: Story[]; contracts: { services: any[]; contracts: ApiContract[] } }>(
+    unwrap<{
+      project: Project;
+      stories: Story[];
+      knowledge?: KnowledgeDocument[];
+      contracts: { services: any[]; contracts: ApiContract[] };
+      workflows?: (WorkflowRun & { story_title?: string; story_key?: string })[];
+    }>(
       apiClient.get(`/projects/${uuid}`)
     ),
 
