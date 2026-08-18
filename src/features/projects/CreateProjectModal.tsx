@@ -139,10 +139,10 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="my-6 w-full max-w-xl rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-2xl">
-        {/* Header */}
-        <div className="mb-5 flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="w-full max-w-xl max-h-[88vh] rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl flex flex-col overflow-hidden">
+        {/* Fixed Header */}
+        <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-4 bg-[var(--color-surface-elevated)]/50 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
               <FolderPlus size={20} />
@@ -161,169 +161,172 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: Props) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {/* Section 1: Basic Project Information */}
-          <div>
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">
-              1. Basic Project Information
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
-                  Project Key <span className="text-[var(--color-error)]">*</span>
-                </label>
-                <Input
-                  placeholder="e.g. ORD"
-                  value={keyCode}
-                  onChange={(e) => setKeyCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ""))}
-                  required
-                  maxLength={8}
-                  className="font-mono uppercase font-bold text-[var(--color-primary)]"
-                />
+        {/* Scrollable Form Body */}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden min-h-0">
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+            {/* Section 1: Basic Project Information */}
+            <div>
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">
+                1. Basic Project Information
               </div>
-              <div className="col-span-2">
-                <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
-                  Project Name <span className="text-[var(--color-error)]">*</span>
-                </label>
-                <Input
-                  placeholder="e.g. Order Management Platform"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
+                    Project Key <span className="text-[var(--color-error)]">*</span>
+                  </label>
+                  <Input
+                    placeholder="e.g. ORD"
+                    value={keyCode}
+                    onChange={(e) => setKeyCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ""))}
+                    required
+                    maxLength={8}
+                    className="font-mono uppercase font-bold text-[var(--color-primary)]"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
+                    Project Name <span className="text-[var(--color-error)]">*</span>
+                  </label>
+                  <Input
+                    placeholder="e.g. Order Management Platform"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
-            </div>
 
-            <div className="mt-2.5">
-              <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">Description</label>
-              <textarea
-                placeholder="Describe the domain, capabilities, and purpose of this service…"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={2}
-                className="w-full rounded-[10px] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-placeholder)] shadow-[var(--shadow-neu-inset)] outline-none transition-colors focus:border-[var(--color-border-orange)]"
-              />
-            </div>
-          </div>
-
-          {/* Section 2: Git Repository & Branch Information (GitHub Only) */}
-          <div className="border-t border-[var(--color-border)] pt-3">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">
-              2. GitHub Repository & Branch
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="col-span-2">
-                <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
-                  GitHub Repository URL
-                </label>
-                <Input
-                  placeholder="https://github.com/org/repo"
-                  value={gitRepoUrl}
-                  onChange={(e) => setGitRepoUrl(e.target.value)}
-                  className="font-mono text-xs"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
-                  Branch
-                </label>
-                <Input
-                  placeholder="main"
-                  value={gitBranch}
-                  onChange={(e) => setGitBranch(e.target.value)}
-                  className="font-mono text-xs"
+              <div className="mt-2.5">
+                <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">Description</label>
+                <textarea
+                  placeholder="Describe the domain, capabilities, and purpose of this service…"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={2}
+                  className="w-full rounded-[10px] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-placeholder)] shadow-[var(--shadow-neu-inset)] outline-none transition-colors focus:border-[var(--color-border-orange)]"
                 />
               </div>
             </div>
+
+            {/* Section 2: Git Repository & Branch Information (GitHub Only) */}
+            <div className="border-t border-[var(--color-border)] pt-3">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">
+                2. GitHub Repository & Branch
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
+                    GitHub Repository URL
+                  </label>
+                  <Input
+                    placeholder="https://github.com/org/repo"
+                    value={gitRepoUrl}
+                    onChange={(e) => setGitRepoUrl(e.target.value)}
+                    className="font-mono text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
+                    Branch
+                  </label>
+                  <Input
+                    placeholder="main"
+                    value={gitBranch}
+                    onChange={(e) => setGitBranch(e.target.value)}
+                    className="font-mono text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3: Technology Stack & Dynamic Framework (Language-specific) */}
+            <div className="border-t border-[var(--color-border)] pt-3">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">
+                3. Technology Stack & Framework
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
+                    Technology Stack
+                  </label>
+                  <select
+                    value={targetLang}
+                    onChange={(e) => handleStackChange(e.target.value)}
+                    className="w-full rounded-[10px] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-sm text-[var(--color-text-primary)] shadow-[var(--shadow-neu-inset)] outline-none focus:border-[var(--color-border-orange)]"
+                  >
+                    <option value="javascript">JavaScript / TypeScript</option>
+                    <option value="python">Python</option>
+                    <option value="java">Java</option>
+                    <option value="csharp">C# / .NET</option>
+                    <option value="go">Go</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
+                    Framework
+                  </label>
+                  <select
+                    value={framework}
+                    onChange={(e) => setFramework(e.target.value)}
+                    className="w-full rounded-[10px] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-sm text-[var(--color-text-primary)] shadow-[var(--shadow-neu-inset)] outline-none focus:border-[var(--color-border-orange)] font-medium"
+                  >
+                    {currentFrameworks.map((fw) => (
+                      <option key={fw.value} value={fw.value}>
+                        {fw.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 4: Application Type & Testing Framework */}
+            <div className="border-t border-[var(--color-border)] pt-3">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">
+                4. Application Type & Testing Framework
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
+                    Application Type
+                  </label>
+                  <select
+                    value={appType}
+                    onChange={(e) => setAppType(e.target.value)}
+                    className="w-full rounded-[10px] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-sm text-[var(--color-text-primary)] shadow-[var(--shadow-neu-inset)] outline-none focus:border-[var(--color-border-orange)]"
+                  >
+                    <option value="REST API / Microservice">REST API / Microservice</option>
+                    <option value="Fullstack Web Application">Fullstack Web Application</option>
+                    <option value="Single Page App (SPA)">Single Page App (SPA)</option>
+                    <option value="Event-Driven / Worker">Event-Driven / Worker</option>
+                    <option value="GraphQL API">GraphQL API</option>
+                    <option value="CLI / Background Service">CLI / Background Service</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
+                    Testing Framework
+                  </label>
+                  <select
+                    value={testingFw}
+                    onChange={(e) => setTestingFw(e.target.value)}
+                    className="w-full rounded-[10px] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-sm text-[var(--color-text-primary)] shadow-[var(--shadow-neu-inset)] outline-none focus:border-[var(--color-border-orange)]"
+                  >
+                    {currentTestingFws.map((tf) => (
+                      <option key={tf.value} value={tf.value}>
+                        {tf.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Section 3: Technology Stack & Dynamic Framework (Language-specific) */}
-          <div className="border-t border-[var(--color-border)] pt-3">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">
-              3. Technology Stack & Framework
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
-                  Technology Stack
-                </label>
-                <select
-                  value={targetLang}
-                  onChange={(e) => handleStackChange(e.target.value)}
-                  className="w-full rounded-[10px] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-sm text-[var(--color-text-primary)] shadow-[var(--shadow-neu-inset)] outline-none focus:border-[var(--color-border-orange)]"
-                >
-                  <option value="javascript">JavaScript / TypeScript</option>
-                  <option value="python">Python</option>
-                  <option value="java">Java</option>
-                  <option value="csharp">C# / .NET</option>
-                  <option value="go">Go</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
-                  Framework
-                </label>
-                <select
-                  value={framework}
-                  onChange={(e) => setFramework(e.target.value)}
-                  className="w-full rounded-[10px] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-sm text-[var(--color-text-primary)] shadow-[var(--shadow-neu-inset)] outline-none focus:border-[var(--color-border-orange)] font-medium"
-                >
-                  {currentFrameworks.map((fw) => (
-                    <option key={fw.value} value={fw.value}>
-                      {fw.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Section 4: Application Type & Testing Framework */}
-          <div className="border-t border-[var(--color-border)] pt-3">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">
-              4. Application Type & Testing Framework
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
-                  Application Type
-                </label>
-                <select
-                  value={appType}
-                  onChange={(e) => setAppType(e.target.value)}
-                  className="w-full rounded-[10px] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-sm text-[var(--color-text-primary)] shadow-[var(--shadow-neu-inset)] outline-none focus:border-[var(--color-border-orange)]"
-                >
-                  <option value="REST API / Microservice">REST API / Microservice</option>
-                  <option value="Fullstack Web Application">Fullstack Web Application</option>
-                  <option value="Single Page App (SPA)">Single Page App (SPA)</option>
-                  <option value="Event-Driven / Worker">Event-Driven / Worker</option>
-                  <option value="GraphQL API">GraphQL API</option>
-                  <option value="CLI / Background Service">CLI / Background Service</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">
-                  Testing Framework
-                </label>
-                <select
-                  value={testingFw}
-                  onChange={(e) => setTestingFw(e.target.value)}
-                  className="w-full rounded-[10px] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-sm text-[var(--color-text-primary)] shadow-[var(--shadow-neu-inset)] outline-none focus:border-[var(--color-border-orange)]"
-                >
-                  {currentTestingFws.map((tf) => (
-                    <option key={tf.value} value={tf.value}>
-                      {tf.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="mt-3 flex justify-end gap-2.5 border-t border-[var(--color-border)] pt-4">
+          {/* Fixed Footer with Action Buttons */}
+          <div className="flex justify-end gap-2.5 border-t border-[var(--color-border)] px-6 py-4 bg-[var(--color-surface)] shrink-0">
             <Button type="button" variant="secondary" onClick={onClose}>
               Cancel
             </Button>
