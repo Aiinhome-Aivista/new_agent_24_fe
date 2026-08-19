@@ -3,7 +3,8 @@ import { projectApi } from "@/services/api/projectApi";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useToast } from "@/contexts/ToastContext";
-import { X, FolderPlus } from "lucide-react";
+import type { GitConnectionResult } from "@/types";
+import { X, FolderPlus, CheckCircle2, AlertCircle, Loader2, GitBranch, Plug } from "lucide-react";
 
 interface Props {
   isOpen: boolean;
@@ -80,6 +81,8 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: Props) {
   const [description, setDescription] = useState("");
   const [gitRepoUrl, setGitRepoUrl] = useState("");
   const [gitBranch, setGitBranch] = useState("main");
+  const [testingGit, setTestingGit] = useState(false);
+  const [gitTestResult, setGitTestResult] = useState<GitConnectionResult | null>(null);
   const [targetLang, setTargetLang] = useState("javascript");
   const [framework, setFramework] = useState("React");
   const [appType, setAppType] = useState("Fullstack Web Application");
@@ -87,6 +90,38 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: Props) {
   const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
+
+  const handleTestGitConnection = async () => {
+    if (!gitRepoUrl.trim()) {
+      notify("error", "Please enter a GitHub repository URL first");
+      return;
+    }
+    setTestingGit(true);
+    setGitTestResult(null);
+    try {
+      const res = await projectApi.testGitConnection({
+        git_repo_url: gitRepoUrl.trim(),
+        git_branch: gitBranch.trim() || "main",
+        git_provider: "github",
+      });
+      setGitTestResult(res);
+      if (res.connected) {
+        notify("success", res.message);
+      } else {
+        notify("error", res.message);
+      }
+    } catch (err) {
+      const msg = (err as Error).message || "Failed to test Git connection";
+      setGitTestResult({
+        connected: false,
+        status: "NETWORK_ERROR",
+        message: msg,
+      });
+      notify("error", msg);
+    } finally {
+      setTestingGit(false);
+    }
+  };
 
   const handleStackChange = (lang: string) => {
     setTargetLang(lang);
@@ -210,8 +245,31 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: Props) {
 
             {/* Section 2: Git Repository & Branch Information (GitHub Only) */}
             <div className="border-t border-[var(--color-border)] pt-3">
-              <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">
-                2. GitHub Repository & Branch
+              <div className="mb-2 flex items-center justify-between">
+                <div className="text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)] flex items-center gap-1.5">
+                  <GitBranch size={13} />
+                  2. GitHub Repository & Branch
+                </div>
+                {gitRepoUrl.trim() && (
+                  <button
+                    type="button"
+                    onClick={handleTestGitConnection}
+                    disabled={testingGit}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--color-primary)] hover:underline disabled:opacity-50 transition-colors"
+                  >
+                    {testingGit ? (
+                      <>
+                        <Loader2 size={12} className="animate-spin" />
+                        Testing Connection...
+                      </>
+                    ) : (
+                      <>
+                        <Plug size={12} />
+                        Test Connection
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2">
@@ -221,7 +279,10 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: Props) {
                   <Input
                     placeholder="https://github.com/org/repo"
                     value={gitRepoUrl}
-                    onChange={(e) => setGitRepoUrl(e.target.value)}
+                    onChange={(e) => {
+                      setGitRepoUrl(e.target.value);
+                      if (gitTestResult) setGitTestResult(null);
+                    }}
                     className="font-mono text-xs"
                   />
                 </div>
@@ -232,11 +293,64 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: Props) {
                   <Input
                     placeholder="main"
                     value={gitBranch}
-                    onChange={(e) => setGitBranch(e.target.value)}
+                    onChange={(e) => {
+                      setGitBranch(e.target.value);
+                      if (gitTestResult) setGitTestResult(null);
+                    }}
                     className="font-mono text-xs"
                   />
                 </div>
               </div>
+
+              {/* Git Connectivity Status Feedback */}
+              {testingGit && (
+                <div className="mt-2.5 flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-3 py-2 text-xs text-[var(--color-text-secondary)] animate-pulse">
+                  <Loader2 size={14} className="animate-spin text-[var(--color-primary)]" />
+                  <span>Connecting to GitHub remote to verify repository and branch '{gitBranch || "main"}'...</span>
+                </div>
+              )}
+
+              {gitTestResult && !testingGit && (
+                <div
+                  className={`mt-2.5 rounded-lg border p-2.5 text-xs transition-all ${
+                    gitTestResult.connected
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                      : "border-rose-500/30 bg-rose-500/10 text-rose-300"
+                  }`}
+                >
+                  <div className="flex items-start gap-2">
+                    {gitTestResult.connected ? (
+                      <CheckCircle2 size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertCircle size={16} className="text-rose-400 shrink-0 mt-0.5" />
+                    )}
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center justify-between font-semibold">
+                        <span>{gitTestResult.connected ? "Connection Verified" : "Connection Failed"}</span>
+                        {gitTestResult.latency_ms !== undefined && gitTestResult.latency_ms > 0 && (
+                          <span className="font-mono text-[10px] opacity-80">
+                            {gitTestResult.latency_ms}ms
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] leading-relaxed opacity-90">{gitTestResult.message}</p>
+                      {gitTestResult.connected && gitTestResult.repo && (
+                        <div className="flex items-center gap-2 pt-1 font-mono text-[10px] opacity-80">
+                          <span>Repo: {gitTestResult.repo}</span>
+                          <span>•</span>
+                          <span>Branch: {gitTestResult.branch}</span>
+                          {gitTestResult.is_private !== undefined && (
+                            <>
+                              <span>•</span>
+                              <span>{gitTestResult.is_private ? "Private" : "Public"}</span>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Section 3: Technology Stack & Dynamic Framework (Language-specific) */}

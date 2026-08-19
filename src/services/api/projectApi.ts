@@ -1,5 +1,5 @@
 import { apiClient, unwrap } from "./apiClient";
-import type { Project, Story, ApiContract, KnowledgeDocument, WorkflowRun } from "@/types";
+import type { Project, Story, ApiContract, KnowledgeDocument, WorkflowRun, GitConnectionResult } from "@/types";
 
 export interface CreateProjectPayload {
   key_code: string;
@@ -24,6 +24,13 @@ export interface CreateProjectPayload {
   backend_framework?: string;
 }
 
+export interface TestGitConnectionPayload {
+  git_repo_url: string;
+  git_branch?: string;
+  git_provider?: string;
+  token?: string;
+}
+
 export const projectApi = {
   list: () => unwrap<{ projects: Project[] }>(apiClient.get("/projects")),
 
@@ -43,6 +50,16 @@ export const projectApi = {
       apiClient.post("/projects", data)
     ),
 
+  testGitConnection: (payload: TestGitConnectionPayload) =>
+    unwrap<GitConnectionResult>(
+      apiClient.post("/projects/test-git-connection", payload)
+    ),
+
+  testProjectGitConnection: (projectUuid: string, payload?: Partial<TestGitConnectionPayload>) =>
+    unwrap<GitConnectionResult>(
+      apiClient.post(`/projects/${projectUuid}/test-git-connection`, payload || {})
+    ),
+
   addContract: (projectUuid: string, contract: { service_name: string; method: string; path: string; request_schema?: any; response_schema?: any }) =>
     unwrap<ApiContract>(apiClient.post(`/projects/${projectUuid}/contracts`, contract)),
 
@@ -53,3 +70,4 @@ export const projectApi = {
       })
     ),
 };
+

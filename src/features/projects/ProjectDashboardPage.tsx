@@ -9,7 +9,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Loading, ErrorState } from "@/components/ui/Loading";
 import { CreateStoryModal } from "@/features/stories/CreateStoryModal";
 import { useToast } from "@/contexts/ToastContext";
-import type { Project, Story, ApiContract, KnowledgeDocument, KnowledgeChunk } from "@/types";
+import type { Project, Story, ApiContract, KnowledgeDocument, KnowledgeChunk, GitConnectionResult } from "@/types";
 import {
   FolderKanban,
   ArrowLeft,
@@ -24,6 +24,7 @@ import {
   Sparkles,
   ShieldCheck,
   CheckCircle2,
+  AlertCircle,
   Clock,
   Play,
   FileText,
@@ -31,6 +32,8 @@ import {
   Terminal,
   Server,
   UploadCloud,
+  Plug,
+  Loader2,
 } from "lucide-react";
 
 const healthColor: Record<string, string> = {
@@ -56,6 +59,8 @@ export function ProjectDashboardPage() {
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
   const [createStoryOpen, setCreateStoryOpen] = useState(false);
+  const [testingGit, setTestingGit] = useState(false);
+  const [gitResult, setGitResult] = useState<GitConnectionResult | null>(null);
 
   // RAG Query Sandbox State
   const [ragQuery, setRagQuery] = useState("");
@@ -82,6 +87,35 @@ export function ProjectDashboardPage() {
   useEffect(() => {
     loadProjectData();
   }, [uuid]);
+
+  const handleTestGitConnection = async () => {
+    if (!uuid || !project) return;
+    if (!project.git_repo_url) {
+      notify("error", "No Git repository URL configured for this project.");
+      return;
+    }
+    setTestingGit(true);
+    setGitResult(null);
+    try {
+      const res = await projectApi.testProjectGitConnection(uuid);
+      setGitResult(res);
+      if (res.connected) {
+        notify("success", res.message);
+      } else {
+        notify("error", res.message);
+      }
+    } catch (err) {
+      const msg = (err as Error).message || "Failed to test Git connection";
+      setGitResult({
+        connected: false,
+        status: "NETWORK_ERROR",
+        message: msg,
+      });
+      notify("error", msg);
+    } finally {
+      setTestingGit(false);
+    }
+  };
 
   const handleRagSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -429,9 +463,32 @@ export function ProjectDashboardPage() {
 
               {/* GitHub & VCS Card */}
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-                <h3 className="font-display text-sm font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
-                  <GitBranch size={16} className="text-[var(--color-primary)]" /> GitHub & VCS Integration
-                </h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-display text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
+                    <GitBranch size={16} className="text-[var(--color-primary)]" /> GitHub & VCS Integration
+                  </h3>
+                  {project.git_repo_url && (
+                    <button
+                      type="button"
+                      onClick={handleTestGitConnection}
+                      disabled={testingGit}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-2.5 py-1 text-xs font-medium text-[var(--color-text-primary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50 transition-all shadow-sm"
+                    >
+                      {testingGit ? (
+                        <>
+                          <Loader2 size={12} className="animate-spin text-[var(--color-primary)]" />
+                          Testing...
+                        </>
+                      ) : (
+                        <>
+                          <Plug size={12} className="text-[var(--color-primary)]" />
+                          Test Connection
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
                 <div className="space-y-2.5 text-xs">
                   <div className="flex justify-between py-1 border-b border-[var(--color-border)]">
                     <span className="text-[var(--color-text-secondary)]">Provider:</span>
@@ -441,19 +498,90 @@ export function ProjectDashboardPage() {
                     <span className="text-[var(--color-text-secondary)]">Default Branch:</span>
                     <span className="font-mono text-[var(--color-primary)]">{project.git_branch || "main"}</span>
                   </div>
-                  {project.git_repo_url && (
-                    <div className="pt-1">
+                  {project.git_repo_url ? (
+                    <div className="pt-1 border-b border-[var(--color-border)] pb-2">
                       <span className="text-[var(--color-text-secondary)] block mb-1">Repository URL:</span>
                       <a
                         href={project.git_repo_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-mono text-[11px] text-[var(--color-primary)] break-all hover:underline"
+                        className="font-mono text-[11px] text-[var(--color-primary)] break-all hover:underline inline-flex items-center gap-1"
                       >
                         {project.git_repo_url}
+                        <ExternalLink size={10} />
                       </a>
                     </div>
+                  ) : (
+                    <div className="py-2 text-[var(--color-text-secondary)] italic">
+                      No repository URL specified for this project.
+                    </div>
                   )}
+
+                  {/* Connectivity Status Display */}
+                  <div className="pt-1">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[var(--color-text-secondary)]">Connection Status:</span>
+                      {testingGit ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[11px] font-medium text-blue-400 border border-blue-500/20">
+                          <Loader2 size={10} className="animate-spin" /> Verifying...
+                        </span>
+                      ) : gitResult ? (
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium border ${
+                            gitResult.connected
+                              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                              : "bg-rose-500/10 text-rose-400 border-rose-500/30"
+                          }`}
+                        >
+                          {gitResult.connected ? (
+                            <>
+                              <CheckCircle2 size={11} /> Connected
+                            </>
+                          ) : (
+                            <>
+                              <AlertCircle size={11} /> Connection Failed
+                            </>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-surface-elevated)] px-2 py-0.5 text-[11px] text-[var(--color-text-secondary)] border border-[var(--color-border)]">
+                          Ready to Test
+                        </span>
+                      )}
+                    </div>
+
+                    {gitResult && !testingGit && (
+                      <div
+                        className={`mt-2 rounded-lg border p-2.5 text-xs transition-all ${
+                          gitResult.connected
+                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                            : "border-rose-500/30 bg-rose-500/10 text-rose-300"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <p className="text-[11px] leading-relaxed opacity-90">{gitResult.message}</p>
+                          {gitResult.latency_ms !== undefined && gitResult.latency_ms > 0 && (
+                            <span className="font-mono text-[10px] opacity-80 shrink-0 ml-2">
+                              {gitResult.latency_ms}ms
+                            </span>
+                          )}
+                        </div>
+                        {gitResult.connected && gitResult.repo && (
+                          <div className="flex items-center gap-2 pt-1 font-mono text-[10px] opacity-80">
+                            <span>Repo: {gitResult.repo}</span>
+                            <span>•</span>
+                            <span>Branch: {gitResult.branch}</span>
+                            {gitResult.is_private !== undefined && (
+                              <>
+                                <span>•</span>
+                                <span>{gitResult.is_private ? "Private" : "Public"}</span>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

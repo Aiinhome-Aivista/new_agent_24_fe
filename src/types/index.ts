@@ -150,3 +150,16 @@ export interface DashboardKpis {
   requirement_coverage: number;
   evidence_ready: number;
 }
+
+export interface GitConnectionResult {
+  connected: boolean;
+  status: "CONNECTED" | "CONNECTED_BRANCH_UNVERIFIED" | "BRANCH_NOT_FOUND" | "NOT_FOUND" | "AUTH_REQUIRED" | "RATE_LIMITED" | "INVALID_URL" | "TIMEOUT" | "NETWORK_ERROR" | "HTTP_ERROR" | "UNREACHABLE";
+  provider?: string;
+  repo?: string | null;
+  branch?: string;
+  default_branch?: string;
+  is_private?: boolean;
+  message: string;
+  latency_ms?: number;
+}
+
