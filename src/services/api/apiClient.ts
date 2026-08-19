@@ -3,7 +3,7 @@ import type { ApiEnvelope } from "@/types";
 
 const BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
 
-export const apiClient: AxiosInstance = axios.create({ baseURL: BASE, timeout: 30000 });
+export const apiClient: AxiosInstance = axios.create({ baseURL: BASE, timeout: 3000000 });
 
 let accessToken: string | null = null;
 export function setAccessToken(token: string | null) {

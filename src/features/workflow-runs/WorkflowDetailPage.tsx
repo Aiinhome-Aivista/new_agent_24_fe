@@ -185,11 +185,32 @@ export function WorkflowDetailPage() {
   if (loadingInitial && !workflowDetail) return <Loading />;
   if (error && !workflowDetail) return <ErrorState message={error} onRetry={refreshData} />;
 
+  const currentStage = status?.current_stage || workflowDetail?.current_stage || "CREATED";
+  const currentStatus = status?.status || workflowDetail?.status || "RUNNING";
+
+  const isWaiting =
+    currentStatus === "WAITING_FOR_REVIEW" ||
+    currentStatus === "WAITING_FOR_APPROVAL" ||
+    ["TEST_REVIEW", "EVIDENCE_REVIEW", "ALM_APPROVAL", "ALM_ATTACHMENT"].includes(currentStage);
+
   const pendingApprovals = approvalsList.filter((a) => a.decision === "PENDING");
   const pastApprovals = approvalsList.filter((a) => a.decision !== "PENDING");
 
-  const currentStage = status?.current_stage || workflowDetail?.current_stage || "CREATED";
-  const currentStatus = status?.status || workflowDetail?.status || "RUNNING";
+  // Always construct active approvals if pipeline is halted at a checkpoint
+  const displayApprovals: Approval[] =
+    pendingApprovals.length > 0
+      ? pendingApprovals
+      : isWaiting
+      ? [
+          {
+            uuid: approvalsList[0]?.uuid || id,
+            workflow_id: id,
+            stage: currentStage,
+            decision: "PENDING",
+            requested_at: new Date().toISOString(),
+          },
+        ]
+      : [];
 
   const latestExec = executionRuns[0];
   const latestQuality = codeQualityRuns[0];
@@ -255,13 +276,27 @@ export function WorkflowDetailPage() {
               15 Stages
             </span>
           </div>
-          <WorkflowStepper current={currentStage} status={currentStatus} />
+          <WorkflowStepper
+            current={currentStage}
+            status={currentStatus}
+            onApprove={
+              displayApprovals.length > 0
+                ? () => handleDecide(displayApprovals[0], "APPROVED")
+                : undefined
+            }
+            onReject={
+              displayApprovals.length > 0
+                ? () => handleDecide(displayApprovals[0], "REJECTED")
+                : undefined
+            }
+            isSubmitting={submittingUuid !== null}
+          />
         </Card>
 
         {/* Content Column */}
         <div className="flex flex-col gap-6">
           {/* PENDING HUMAN CHECKPOINT CARD */}
-          {pendingApprovals.length > 0 && (
+          {displayApprovals.length > 0 && (
             <div className="rounded-2xl border-2 border-amber-500 bg-amber-500/5 p-5 shadow-lg shadow-amber-500/5 space-y-4">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400">
@@ -282,13 +317,14 @@ export function WorkflowDetailPage() {
                 </div>
               </div>
 
-              {pendingApprovals.map((a) => {
+              {displayApprovals.map((a) => {
                 const guide = CHECKPOINT_GUIDES[a.stage] || {
                   title: a.stage.replace(/_/g, " "),
                   desc: "Review pipeline outputs before granting authorization to proceed.",
                 };
                 const commentVal = comments[a.uuid] || "";
                 const isSubmitting = submittingUuid === a.uuid;
+
 
                 return (
                   <div
