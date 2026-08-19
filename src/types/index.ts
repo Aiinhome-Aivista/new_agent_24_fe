@@ -118,6 +118,88 @@ export interface TestCase {
   status: string;
   origin: string;
   priority: string;
+  description?: string;
+  expected_result?: string;
+  risk?: string;
+  generated_code?: string;
+  target_language?: string;
+  framework?: string;
+}
+
+export interface AssertionItem {
+  name: string;
+  passed: boolean;
+}
+
+export interface ExecutionResultItem {
+  id: number;
+  uuid: string;
+  status_code: number;
+  passed: boolean | number;
+  duration_ms: number;
+  assertions?: AssertionItem[];
+  method?: string;
+  url?: string;
+  req_headers?: Record<string, string>;
+  req_body?: string;
+  resp_status?: number;
+  resp_headers?: Record<string, string>;
+  resp_body?: string;
+  is_mock?: boolean | number;
+}
+
+export interface ExecutionRun {
+  id: number;
+  uuid: string;
+  workflow_id: string;
+  runner: string;
+  environment?: string;
+  collection?: string;
+  status: string;
+  total: number;
+  passed: number;
+  failed: number;
+  is_mock: boolean | number;
+  started_at?: string;
+  completed_at?: string;
+  created_at?: string;
+  results?: ExecutionResultItem[];
+}
+
+export interface CodeQualityIssue {
+  id: number;
+  severity: "blocker" | "critical" | "major" | "minor" | "info" | string;
+  rule: string;
+  file: string;
+  line: number;
+  description: string;
+  remediation?: string;
+}
+
+export interface CodeQualityRun {
+  id: number;
+  uuid: string;
+  workflow_id: string;
+  analyzer: string;
+  score: number;
+  passed: boolean | number;
+  is_mock: boolean | number;
+  created_at?: string;
+  issues?: CodeQualityIssue[];
+}
+
+export interface EvidencePackage {
+  id?: number;
+  uuid: string;
+  evidence_key: string;
+  workflow_id: string;
+  format?: string;
+  file_path?: string;
+  checksum?: string;
+  narrative?: string;
+  approval_status: string;
+  content?: string;
+  created_at?: string;
 }
 
 export interface Approval {
@@ -143,6 +225,7 @@ export interface AgentInfo {
 }
 
 export interface DashboardKpis {
+
   active_workflows: number;
   pending_approvals: number;
   tests_executed: number;
