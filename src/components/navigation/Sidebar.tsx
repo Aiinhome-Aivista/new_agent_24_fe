@@ -170,12 +170,12 @@ export function Sidebar() {
         section: "Governance & Ops",
         items: [
           {
-            to: "/app/approvals",
+            to: `/app/approvals?project=${activeProjectUuid}`,
             label: "Approval Center",
             icon: ShieldCheck,
           },
           {
-            to: "/app/agents",
+            to: `/app/agents?project=${activeProjectUuid}`,
             label: "Agent Monitor",
             icon: Bot,
           },

@@ -363,7 +363,7 @@ export function ProjectDashboardPage() {
                         </div>
                         <Button
                           variant="secondary"
-                          onClick={() => navigate(`/app/new-workflow?story=${s.uuid}`)}
+                          onClick={() => navigate(`/app/new-workflow?story=${s.uuid}${project?.uuid ? `&project=${project.uuid}` : ""}`)}
                           className="text-xs shrink-0 py-1 px-2.5 h-7"
                         >
                           <Play size={12} /> Run TDD
@@ -397,7 +397,7 @@ export function ProjectDashboardPage() {
                     {workflows.slice(0, 4).map((w) => (
                       <Link
                         key={w.workflow_id}
-                        to={`/app/workflows/${w.workflow_id}`}
+                        to={`/app/workflows/${w.workflow_id}${project?.uuid ? `?project=${project.uuid}` : ""}`}
                         className="py-3 flex items-center justify-between gap-3 hover:bg-[var(--color-surface-elevated)]/40 px-2 rounded-lg transition-colors"
                       >
                         <div>
@@ -637,7 +637,7 @@ export function ProjectDashboardPage() {
 
                     <div className="flex items-center gap-2 shrink-0">
                       <Button
-                        onClick={() => navigate(`/app/new-workflow?story=${s.uuid}`)}
+                        onClick={() => navigate(`/app/new-workflow?story=${s.uuid}${project?.uuid ? `&project=${project.uuid}` : ""}`)}
                         className="flex items-center gap-1.5 text-xs font-semibold"
                       >
                         <Play size={13} /> Run TDD Workflow

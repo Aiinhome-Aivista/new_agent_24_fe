@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { usePolling } from "@/hooks/usePolling";
 import { approvalApi } from "@/services/api/approvalApi";
+import { projectApi } from "@/services/api/projectApi";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Loading, ErrorState } from "@/components/ui/Loading";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/contexts/ToastContext";
-import { Link } from "react-router-dom";
-import type { Approval } from "@/types";
+import { Link, useSearchParams } from "react-router-dom";
+import type { Approval, Project } from "@/types";
 import {
   ShieldAlert,
   CheckCircle2,
@@ -19,15 +20,25 @@ import {
 } from "lucide-react";
 
 export function ApprovalsPage() {
+  const [params, setParams] = useSearchParams();
+  const selectedProject = params.get("project") ?? "";
   const { notify } = useToast();
   const [comments, setComments] = useState<Record<string, string>>({});
   const [submittingUuid, setSubmittingUuid] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  const [projects, setProjects] = useState<Project[]>([]);
 
   // Poll pending approvals every 3s
   const pollingData = usePolling(() => approvalApi.pending(), 3000, true);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    projectApi
+      .list()
+      .then((res) => setProjects(res.projects ?? []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     approvalApi
@@ -41,6 +52,18 @@ export function ApprovalsPage() {
       setApprovals(pollingData.approvals);
     }
   }, [pollingData]);
+
+  const handleProjectFilter = (pUuid: string) => {
+    if (pUuid) {
+      setParams({ project: pUuid });
+    } else {
+      setParams({});
+    }
+  };
+
+  const displayedApprovals = selectedProject
+    ? approvals.filter((a) => a.project_uuid === selectedProject)
+    : approvals;
 
   const decide = async (a: Approval, decision: string) => {
     setSubmittingUuid(a.uuid);
@@ -84,17 +107,37 @@ export function ApprovalsPage() {
         </Button>
       </div>
 
-      {approvals.length === 0 ? (
+      {/* Filter Bar */}
+      {projects.length > 0 && (
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-[var(--color-text-secondary)]">Filter Project:</label>
+          <select
+            value={selectedProject}
+            onChange={(e) => handleProjectFilter(e.target.value)}
+            className="rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+          >
+            <option value="">All Projects</option>
+            {projects.map((p) => (
+              <option key={p.uuid} value={p.uuid}>
+                {p.key_code} — {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {displayedApprovals.length === 0 ? (
         <EmptyState
-          title="Nothing awaiting approval"
-          hint="Human checkpoints will automatically appear here as autonomous workflows reach them."
+          title={selectedProject ? "No pending approvals for this project" : "Nothing awaiting approval"}
+          hint={selectedProject ? "There are currently no human checkpoints waiting for approval in this project." : "Human checkpoints will automatically appear here as autonomous workflows reach them."}
         />
       ) : (
         <div className="flex flex-col gap-4">
-          {approvals.map((a) => {
+          {displayedApprovals.map((a) => {
             const isSubmitting = submittingUuid === a.uuid;
             const commentVal = comments[a.uuid] || "";
-            const linkUrl = `/app/workflows/${a.workflow_id}${a.project_uuid ? `?project=${a.project_uuid}` : ""}`;
+            const targetProj = selectedProject || a.project_uuid;
+            const linkUrl = `/app/workflows/${a.workflow_id}${targetProj ? `?project=${targetProj}` : ""}`;
 
             return (
               <Card
