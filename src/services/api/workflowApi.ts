@@ -2,7 +2,10 @@ import { apiClient, unwrap } from "./apiClient";
 import type { WorkflowRun, WorkflowSLA, AlmPreview } from "@/types";
 
 export const workflowApi = {
-  list: () => unwrap<{ workflows: WorkflowRun[] }>(apiClient.get("/workflows")),
+  list: (project_uuid?: string) =>
+    unwrap<{ workflows: WorkflowRun[] }>(
+      apiClient.get(project_uuid ? `/workflows?project=${project_uuid}` : "/workflows")
+    ),
   start: (story_uuid: string, capabilities: string[]) =>
     unwrap<{ workflow_id: string; task_id: string; status: string }>(
       apiClient.post("/workflows", { story_uuid, capabilities })),

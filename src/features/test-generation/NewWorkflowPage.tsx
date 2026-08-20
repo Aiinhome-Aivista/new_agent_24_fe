@@ -43,33 +43,20 @@ export function NewWorkflowPage() {
     (async () => {
       try {
         setLoading(true);
-        const [pRes, sRes, wRes] = await Promise.all([
+        const [pRes, sRes] = await Promise.all([
           projectApi.list(),
           storyApi.list(selectedProject || undefined),
-          workflowApi.list(),
         ]);
         setProjects(pRes.projects ?? []);
 
-        // Map existing workflows by story
-        const storyWfMap = new Map<string, { workflow_id: string; status: string; current_stage: string }>();
-        (wRes.workflows ?? []).forEach((w) => {
-          if (w.story_id) storyWfMap.set(String(w.story_id), { workflow_id: w.workflow_id, status: w.status, current_stage: w.current_stage });
-          if (w.story_key) storyWfMap.set(w.story_key, { workflow_id: w.workflow_id, status: w.status, current_stage: w.current_stage });
-          if (w.story_title) storyWfMap.set(w.story_title, { workflow_id: w.workflow_id, status: w.status, current_stage: w.current_stage });
-        });
-
-        const enrichedStories = (sRes.stories ?? []).map((s) => {
-          const match = s.workflow_id
-            ? { workflow_id: s.workflow_id, status: s.workflow_status || "RUNNING", current_stage: s.workflow_stage || "CREATED" }
-            : (s.external_key ? storyWfMap.get(s.external_key) : null) || storyWfMap.get(s.title);
-
-          return {
-            ...s,
-            workflow_id: match?.workflow_id || s.workflow_id,
-            workflow_status: match?.status || s.workflow_status,
-            workflow_stage: match?.current_stage || s.workflow_stage,
-          };
-        });
+        // Each story from storyApi.list is strictly project-scoped and has its exact workflow_id
+        // from the database join on s.id = w.story_id. No cross-project title matching.
+        const enrichedStories = (sRes.stories ?? []).map((s) => ({
+          ...s,
+          workflow_id: s.workflow_id || undefined,
+          workflow_status: s.workflow_status || undefined,
+          workflow_stage: s.workflow_stage || undefined,
+        }));
 
         setStories(enrichedStories);
 
