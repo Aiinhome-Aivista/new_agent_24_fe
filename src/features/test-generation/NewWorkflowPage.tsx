@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Loading } from "@/components/ui/Loading";
 import { useToast } from "@/contexts/ToastContext";
 import type { Story, Project } from "@/types";
-import { Check, ShieldCheck, ArrowRight, Layers, Sparkles } from "lucide-react";
+import { Check, ShieldCheck, ArrowRight, Layers, Sparkles, GitBranch, AlertCircle } from "lucide-react";
 
 const CAPABILITIES = [
   "Requirement Analysis",
@@ -68,17 +68,23 @@ export function NewWorkflowPage() {
   const toggle = (c: string) =>
     setCaps((cur) => (cur.includes(c) ? cur.filter((x) => x !== c) : [...cur, c]));
 
+  const selectedStoryObj = stories.find((s) => s.uuid === storyUuid);
+  const selectedStoryHasWorkflow = Boolean(selectedStoryObj?.workflow_id);
+  const projUuid = selectedStoryObj?.project_uuid || selectedProject;
+
   const start = async () => {
     if (!storyUuid) {
       notify("error", "Select a user story first");
+      return;
+    }
+    if (selectedStoryHasWorkflow) {
+      notify("error", "A workflow already exists for this story. Multiple workflows per story are not allowed.");
       return;
     }
     setStarting(true);
     try {
       const res = await workflowApi.start(storyUuid, caps);
       notify("success", `Workflow initiated (${res.status})`);
-      const selectedStoryObj = stories.find((s) => s.uuid === storyUuid);
-      const projUuid = selectedStoryObj?.project_uuid || selectedProject;
       navigate(`/app/workflows/${res.workflow_id}${projUuid ? `?project=${projUuid}` : ""}`);
     } catch (e) {
       notify("error", (e as Error).message);
@@ -145,6 +151,7 @@ export function NewWorkflowPage() {
           <div className="flex flex-col gap-2 max-h-72 overflow-y-auto pr-1">
             {stories.map((s) => {
               const isSelected = storyUuid === s.uuid;
+              const hasWf = Boolean(s.workflow_id);
               return (
                 <button
                   key={s.uuid}
@@ -152,7 +159,9 @@ export function NewWorkflowPage() {
                   onClick={() => setStoryUuid(s.uuid)}
                   className={`flex items-center justify-between rounded-[10px] border p-3 text-left transition-all ${
                     isSelected
-                      ? "border-[var(--color-primary)] bg-[var(--color-primary)]/5 ring-1 ring-[var(--color-primary)]/30"
+                      ? hasWf
+                        ? "border-amber-500 bg-amber-500/10 ring-1 ring-amber-500/30"
+                        : "border-[var(--color-primary)] bg-[var(--color-primary)]/5 ring-1 ring-[var(--color-primary)]/30"
                       : "border-[var(--color-border)] hover:border-[var(--color-border-orange)]/60 bg-[var(--color-surface-elevated)]/40"
                   }`}
                 >
@@ -169,6 +178,11 @@ export function NewWorkflowPage() {
                       <span className="text-xs font-semibold text-[var(--color-text-primary)]">
                         {s.title}
                       </span>
+                      {hasWf && (
+                        <span className="inline-flex items-center gap-1 rounded bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-400">
+                          <GitBranch size={10} /> Workflow Exists
+                        </span>
+                      )}
                     </div>
                     {s.description && (
                       <p className="line-clamp-1 text-[11px] text-[var(--color-text-secondary)]">
@@ -177,7 +191,7 @@ export function NewWorkflowPage() {
                     )}
                   </div>
                   {isSelected && (
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary)] text-white">
+                    <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white ${hasWf ? "bg-amber-500" : "bg-[var(--color-primary)]"}`}>
                       <Check size={14} />
                     </div>
                   )}
@@ -187,6 +201,31 @@ export function NewWorkflowPage() {
           </div>
         )}
       </Card>
+
+      {/* Existing Workflow Notice if selected story already has one */}
+      {selectedStoryHasWorkflow && selectedStoryObj && (
+        <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400 mt-0.5">
+              <AlertCircle size={18} />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-[var(--color-text-primary)]">
+                Workflow already exists for this story
+              </p>
+              <p className="text-[11px] text-[var(--color-text-secondary)] mt-0.5">
+                Story <span className="font-mono font-medium text-[var(--color-text-primary)]">{selectedStoryObj.external_key}</span> has an active or completed workflow (ID: <span className="font-mono">{selectedStoryObj.workflow_id?.slice(0, 8)}…</span>). Each story can only have one workflow.
+              </p>
+            </div>
+          </div>
+          <Link
+            to={`/app/workflows/${selectedStoryObj.workflow_id}${projUuid ? `?project=${projUuid}` : ""}`}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-colors shrink-0"
+          >
+            <GitBranch size={13} /> View Workflow <ArrowRight size={12} />
+          </Link>
+        </div>
+      )}
 
       <Card className="mb-4">
         <h2 className="mb-3 font-display text-sm font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
@@ -230,9 +269,18 @@ export function NewWorkflowPage() {
       </div>
 
       <motion.div whileTap={{ scale: 0.99 }}>
-        <Button onClick={start} loading={starting} disabled={!storyUuid || starting} className="w-full py-3 text-sm font-semibold">
-          <Sparkles size={16} className="mr-1.5" /> Start TDD Workflow
-        </Button>
+        {selectedStoryHasWorkflow && selectedStoryObj ? (
+          <Link
+            to={`/app/workflows/${selectedStoryObj.workflow_id}${projUuid ? `?project=${projUuid}` : ""}`}
+            className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white w-full py-3 text-sm font-semibold shadow-sm transition-colors"
+          >
+            <GitBranch size={16} /> View Existing Workflow ({selectedStoryObj.workflow_id?.slice(0, 8)}…)
+          </Link>
+        ) : (
+          <Button onClick={start} loading={starting} disabled={!storyUuid || starting} className="w-full py-3 text-sm font-semibold">
+            <Sparkles size={16} className="mr-1.5" /> Start TDD Workflow
+          </Button>
+        )}
       </motion.div>
     </div>
   );

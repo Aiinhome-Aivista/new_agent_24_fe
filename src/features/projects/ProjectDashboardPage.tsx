@@ -361,13 +361,23 @@ export function ProjectDashboardPage() {
                             <span>Coverage: {Math.round(s.coverage_pct || 0)}%</span>
                           </div>
                         </div>
-                        <Button
-                          variant="secondary"
-                          onClick={() => navigate(`/app/new-workflow?story=${s.uuid}${project?.uuid ? `&project=${project.uuid}` : ""}`)}
-                          className="text-xs shrink-0 py-1 px-2.5 h-7"
-                        >
-                          <Play size={12} /> Run TDD
-                        </Button>
+                        {s.workflow_id ? (
+                          <Button
+                            variant="secondary"
+                            onClick={() => navigate(`/app/workflows/${s.workflow_id}${project?.uuid ? `?project=${project.uuid}` : ""}`)}
+                            className="text-xs shrink-0 py-1 px-2.5 h-7 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 font-semibold"
+                          >
+                            <GitBranch size={12} /> View Workflow
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="secondary"
+                            onClick={() => navigate(`/app/new-workflow?story=${s.uuid}${project?.uuid ? `&project=${project.uuid}` : ""}`)}
+                            className="text-xs shrink-0 py-1 px-2.5 h-7"
+                          >
+                            <Play size={12} /> Run TDD
+                          </Button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -636,12 +646,21 @@ export function ProjectDashboardPage() {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      <Button
-                        onClick={() => navigate(`/app/new-workflow?story=${s.uuid}${project?.uuid ? `&project=${project.uuid}` : ""}`)}
-                        className="flex items-center gap-1.5 text-xs font-semibold"
-                      >
-                        <Play size={13} /> Run TDD Workflow
-                      </Button>
+                      {s.workflow_id ? (
+                        <Button
+                          onClick={() => navigate(`/app/workflows/${s.workflow_id}${project?.uuid ? `?project=${project.uuid}` : ""}`)}
+                          className="flex items-center gap-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm"
+                        >
+                          <GitBranch size={13} /> View Workflow
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={() => navigate(`/app/new-workflow?story=${s.uuid}${project?.uuid ? `&project=${project.uuid}` : ""}`)}
+                          className="flex items-center gap-1.5 text-xs font-semibold"
+                        >
+                          <Play size={13} /> Run TDD Workflow
+                        </Button>
+                      )}
                     </div>
                   </Card>
                 ))}

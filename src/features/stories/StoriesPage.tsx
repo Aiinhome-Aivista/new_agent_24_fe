@@ -10,7 +10,7 @@ import { Loading, ErrorState } from "@/components/ui/Loading";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { CreateStoryModal } from "./CreateStoryModal";
 import type { Story, Project } from "@/types";
-import { Plus, BookOpen, ArrowRight, Layers } from "lucide-react";
+import { Plus, BookOpen, ArrowRight, Layers, GitBranch } from "lucide-react";
 
 export function StoriesPage() {
   const [params, setParams] = useSearchParams();
@@ -126,16 +126,34 @@ export function StoriesPage() {
                   <span>{s.sprint || "Sprint 1"}</span>
                   <span>·</span>
                   <span>Coverage: {Number(s.coverage_pct)}%</span>
+                  {s.workflow_status && (
+                    <>
+                      <span>·</span>
+                      <span className="font-mono font-medium text-emerald-400">
+                        Workflow: {s.workflow_status}
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
 
               <div className="flex items-center gap-3 shrink-0">
                 <StatusBadge status={s.status.toUpperCase()} />
-                <Link
-                  to={`/app/new-workflow?story=${s.uuid}${s.project_uuid || selectedProject ? `&project=${s.project_uuid || selectedProject}` : ""}`}
-                  className="flex items-center gap-1 text-xs font-medium text-[var(--color-primary)] bg-[var(--color-primary)]/10 hover:bg-[var(--color-primary)]/20 px-3 py-1.5 rounded-[8px] transition-colors">
-                  Start TDD <ArrowRight size={13} />
-                </Link>
+                {s.workflow_id ? (
+                  <Link
+                    to={`/app/workflows/${s.workflow_id}${s.project_uuid || selectedProject ? `?project=${s.project_uuid || selectedProject}` : ""}`}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-3 py-1.5 rounded-[8px] transition-colors shadow-sm"
+                  >
+                    <GitBranch size={13} /> View Workflow <ArrowRight size={12} />
+                  </Link>
+                ) : (
+                  <Link
+                    to={`/app/new-workflow?story=${s.uuid}${s.project_uuid || selectedProject ? `&project=${s.project_uuid || selectedProject}` : ""}`}
+                    className="flex items-center gap-1 text-xs font-medium text-[var(--color-primary)] bg-[var(--color-primary)]/10 hover:bg-[var(--color-primary)]/20 px-3 py-1.5 rounded-[8px] transition-colors"
+                  >
+                    Start TDD <ArrowRight size={13} />
+                  </Link>
+                )}
               </div>
             </Card>
           ))}

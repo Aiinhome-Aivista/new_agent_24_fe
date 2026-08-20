@@ -59,6 +59,9 @@ export interface Story {
   project_key?: string;
   project_name?: string;
   acceptance_criteria?: AcceptanceCriterion[];
+  workflow_id?: string;
+  workflow_status?: string;
+  workflow_stage?: string;
 }
 
 export interface KnowledgeDocument {
