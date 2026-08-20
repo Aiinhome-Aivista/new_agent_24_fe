@@ -1,5 +1,5 @@
 import { apiClient, unwrap } from "./apiClient";
-import type { WorkflowRun } from "@/types";
+import type { WorkflowRun, WorkflowSLA, AlmPreview } from "@/types";
 
 export const workflowApi = {
   list: () => unwrap<{ workflows: WorkflowRun[] }>(apiClient.get("/workflows")),
@@ -17,4 +17,11 @@ export const workflowApi = {
       project_uuid?: string;
       story_title?: string;
     }>(apiClient.get(`/workflows/${id}/status`)),
+  sla: (id: string) =>
+    unwrap<{ sla: WorkflowSLA }>(apiClient.get(`/workflows/${id}/sla`)),
+  almPreview: (id: string, provider = "azure_devops") =>
+    unwrap<{ preview: AlmPreview }>(apiClient.get(`/workflows/${id}/alm-preview?provider=${provider}`)),
+  getEvidenceDownloadUrl: (id: string, format = "html") =>
+    `/api/v1/workflows/${id}/evidence/download?format=${format}`,
 };
+

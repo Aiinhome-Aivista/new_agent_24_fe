@@ -249,3 +249,59 @@ export interface GitConnectionResult {
   latency_ms?: number;
 }
 
+export interface StageSLAMetric {
+  stage: string;
+  label: string;
+  tier: string;
+  target_ms: number;
+  actual_ms: number;
+  delta_ms: number;
+  status: "MET" | "BREACHED" | "PENDING";
+  executed: boolean;
+}
+
+export interface WorkflowSLA {
+  workflow_id: string;
+  workflow_status: string;
+  current_stage: string;
+  overall_sla_status: "MET" | "BREACHED" | "IN_PROGRESS" | "WARNING";
+  total_actual_latency_ms: number;
+  total_target_latency_ms: number;
+  stage_metrics: StageSLAMetric[];
+  requirement_coverage: {
+    total_acceptance_criteria: number;
+    generated_test_cases: number;
+    coverage_percentage: number;
+    target_percentage: number;
+    status: "MET" | "WARNING" | "BREACHED";
+  };
+  quality_gate: {
+    score: number;
+    threshold: number;
+    status: "PASS" | "FAIL";
+    issues_count: number;
+  };
+  api_execution_sla: {
+    pass_rate_percentage: number;
+    target_pass_rate: number;
+    total_executed: number;
+    total_passed: number;
+    status: "MET" | "BREACHED";
+  };
+  token_observability: {
+    estimated_prompt_tokens: number;
+    estimated_completion_tokens: number;
+    estimated_total_tokens: number;
+    estimated_cost_usd: number;
+    currency: string;
+  };
+}
+
+export interface AlmPreview {
+  target_system: string;
+  endpoint: string;
+  headers: Record<string, string>;
+  payload: Record<string, unknown> | Array<unknown>;
+}
+
+

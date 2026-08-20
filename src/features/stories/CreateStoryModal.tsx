@@ -136,44 +136,60 @@ export function CreateStoryModal({
     setPostmanFile(file);
     const reader = new FileReader();
     reader.onload = (e) => {
-      try {
-        const json = JSON.parse(e.target?.result as string);
-        const colName = json.info?.name || file.name.replace(".json", "");
-        const endpoints: string[] = [];
+      const text = (e.target?.result as string) || "";
+      if (file.name.endsWith(".bru")) {
+        // Bruno format
+        const methodMatch = text.match(/(get|post|put|delete|patch)\s*\{[^}]*url:\s*(\S+)/i);
+        const method = methodMatch ? methodMatch[1].toUpperCase() : "GET";
+        const url = methodMatch ? methodMatch[2] : "/api/endpoint";
+        const colName = file.name.replace(".bru", "").replace(/_/g, " ");
 
-        const extractItems = (items: any[]) => {
-          if (!Array.isArray(items)) return;
-          items.forEach((item) => {
-            if (item.request) {
-              const method = item.request.method || "GET";
-              const rawUrl =
-                typeof item.request.url === "string"
-                  ? item.request.url
-                  : item.request.url?.raw || item.name || "";
-              endpoints.push(`${method} ${rawUrl}`);
-            }
-            if (item.item) {
-              extractItems(item.item);
-            }
+        setPostmanDetails({
+          name: `${colName} (Bruno)`,
+          requestCount: 1,
+          endpoints: [`${method} ${url}`],
+        });
+        notify("success", `Detected Bruno collection: ${method} ${url}`);
+      } else {
+        try {
+          const json = JSON.parse(text);
+          const colName = json.info?.name || file.name.replace(".json", "");
+          const endpoints: string[] = [];
+
+          const extractItems = (items: any[]) => {
+            if (!Array.isArray(items)) return;
+            items.forEach((item) => {
+              if (item.request) {
+                const method = item.request.method || "GET";
+                const rawUrl =
+                  typeof item.request.url === "string"
+                    ? item.request.url
+                    : item.request.url?.raw || item.name || "";
+                endpoints.push(`${method} ${rawUrl}`);
+              }
+              if (item.item) {
+                extractItems(item.item);
+              }
+            });
+          };
+
+          if (json.item) {
+            extractItems(json.item);
+          }
+
+          setPostmanDetails({
+            name: colName,
+            requestCount: endpoints.length,
+            endpoints: endpoints.slice(0, 5),
           });
-        };
-
-        if (json.item) {
-          extractItems(json.item);
+          notify("success", `Detected Postman collection with ${endpoints.length} request(s)`);
+        } catch {
+          setPostmanDetails({
+            name: file.name,
+            requestCount: 0,
+            endpoints: [],
+          });
         }
-
-        setPostmanDetails({
-          name: colName,
-          requestCount: endpoints.length,
-          endpoints: endpoints.slice(0, 5),
-        });
-        notify("success", `Detected Postman collection with ${endpoints.length} request(s)`);
-      } catch (err) {
-        setPostmanDetails({
-          name: file.name,
-          requestCount: 0,
-          endpoints: [],
-        });
       }
     };
     reader.readAsText(file);
@@ -490,7 +506,7 @@ export function CreateStoryModal({
               <input
                 ref={postmanInputRef}
                 type="file"
-                accept=".json"
+                accept=".json,.bru"
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (f) handlePostmanFileUpload(f);
@@ -506,7 +522,7 @@ export function CreateStoryModal({
                 >
                   <FileCode size={24} className="text-[var(--color-primary)] mb-1.5" />
                   <span className="text-xs font-medium text-[var(--color-text-primary)]">
-                    Upload Postman / Bruno Collection (.json)
+                    Upload Postman (.json) or Bruno (.bru) Collection
                   </span>
                   <span className="text-[11px] text-[var(--color-text-secondary)] mt-0.5">
                     Extracts request methods, URLs, payloads, and auto-registers API contracts for TDD generation

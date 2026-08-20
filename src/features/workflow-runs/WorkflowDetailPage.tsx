@@ -19,6 +19,8 @@ import type {
   ExecutionRun,
   CodeQualityRun,
   EvidencePackage,
+  WorkflowSLA,
+  AlmPreview,
 } from "@/types";
 import {
   ShieldAlert,
@@ -43,6 +45,15 @@ import {
   Activity,
   AlertTriangle,
   FileText,
+  FileCode,
+  Gauge,
+  BarChart3,
+  Timer,
+  Coins,
+  Cpu,
+  Layers,
+  Printer,
+  ExternalLink,
 } from "lucide-react";
 
 const CHECKPOINT_GUIDES: Record<string, { title: string; desc: string }> = {
@@ -82,11 +93,14 @@ export function WorkflowDetailPage() {
   const [approvalsList, setApprovalsList] = useState<Approval[]>([]);
   const [executionRuns, setExecutionRuns] = useState<ExecutionRun[]>([]);
   const [codeQualityRuns, setCodeQualityRuns] = useState<CodeQualityRun[]>([]);
+  const [slaData, setSlaData] = useState<WorkflowSLA | null>(null);
+  const [almPreview, setAlmPreview] = useState<AlmPreview | null>(null);
+  const [almProvider, setAlmProvider] = useState<"azure_devops" | "jira">("azure_devops");
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<"tests" | "executions" | "quality" | "evidence" | "history">("tests");
+  const [activeTab, setActiveTab] = useState<"tests" | "executions" | "quality" | "evidence" | "sla" | "history">("tests");
 
   // Expanded items state
   const [expandedTestUuid, setExpandedTestUuid] = useState<string | null>(null);
@@ -107,13 +121,15 @@ export function WorkflowDetailPage() {
   // Fetch all workflow data
   const refreshData = async () => {
     try {
-      const [dRes, tRes, aRes, eRes, execRes, cqRes] = await Promise.all([
+      const [dRes, tRes, aRes, eRes, execRes, cqRes, slaRes, almRes] = await Promise.all([
         workflowApi.detail(id),
         testApi.forWorkflow(id).catch(() => ({ test_cases: [] })),
         approvalApi.forWorkflow(id).catch(() => ({ approvals: [] })),
         evidenceApi.forWorkflow(id).catch(() => ({ evidence: [] })),
         testApi.executions(id).catch(() => ({ executions: [] })),
         testApi.codeQuality(id).catch(() => ({ code_quality: [] })),
+        workflowApi.sla(id).catch(() => ({ sla: null })),
+        workflowApi.almPreview(id, almProvider).catch(() => ({ preview: null })),
       ]);
       setWorkflowDetail(dRes.workflow);
       setTests(tRes.test_cases ?? []);
@@ -121,12 +137,15 @@ export function WorkflowDetailPage() {
       setEvidenceList((eRes.evidence as EvidencePackage[]) ?? []);
       setExecutionRuns(execRes.executions ?? []);
       setCodeQualityRuns(cqRes.code_quality ?? []);
+      if (slaRes && slaRes.sla) setSlaData(slaRes.sla);
+      if (almRes && almRes.preview) setAlmPreview(almRes.preview);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoadingInitial(false);
     }
   };
+
 
   // Initial load
   useEffect(() => {
@@ -244,8 +263,19 @@ export function WorkflowDetailPage() {
             Run ID: <span className="text-[var(--color-text-primary)]">{id}</span>
           </p>
         </div>
-
         <div className="flex items-center gap-3">
+          {slaData && (
+            <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider border shadow-sm ${
+              slaData.overall_sla_status === "MET"
+                ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+                : slaData.overall_sla_status === "BREACHED"
+                ? "bg-red-500/15 text-red-300 border-red-500/30"
+                : "bg-blue-500/15 text-blue-300 border-blue-500/30"
+            }`}>
+              <Gauge size={13} />
+              <span>SLA: {slaData.overall_sla_status}</span>
+            </div>
+          )}
           <StatusBadge status={currentStatus} />
         </div>
       </div>
@@ -280,10 +310,10 @@ export function WorkflowDetailPage() {
         </Card>
 
         {/* Content Column */}
-        <div className="flex flex-col gap-6">
-          {/* PENDING HUMAN CHECKPOINT CARD */}
+        <div className="space-y-6">
+          {/* Active Human Governance Checkpoints Banner */}
           {displayApprovals.length > 0 && (
-            <div className="rounded-2xl border-2 border-amber-500 bg-amber-500/5 p-5 shadow-lg shadow-amber-500/5 space-y-4">
+            <div className="rounded-2xl border-2 border-amber-500/40 bg-amber-500/5 p-5 shadow-lg space-y-4">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400">
                   <ShieldAlert size={20} className="animate-pulse" />
@@ -310,7 +340,6 @@ export function WorkflowDetailPage() {
                 };
                 const commentVal = comments[a.uuid] || "";
                 const isSubmitting = submittingUuid === a.uuid;
-
 
                 return (
                   <div
@@ -340,6 +369,63 @@ export function WorkflowDetailPage() {
                         Requested: <strong className="text-[var(--color-text-primary)]">{new Date(a.requested_at).toLocaleTimeString()}</strong>
                       </span>
                     </div>
+
+                    {/* ALM Write-Back Payload Inspector inside Checkpoint 3 */}
+                    {(a.stage === "ALM_APPROVAL" || a.stage === "ALM_ATTACHMENT") && almPreview && (
+                      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)]/60 p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Cpu size={15} className="text-[var(--color-primary)]" />
+                            <span className="text-xs font-bold text-[var(--color-text-primary)]">
+                              Target ALM Write-Back Payload Inspector
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAlmProvider("azure_devops");
+                                workflowApi.almPreview(id, "azure_devops").then((res) => setAlmPreview(res.preview));
+                              }}
+                              className={`px-2.5 py-0.5 text-[10px] font-bold rounded-lg transition-colors ${
+                                almProvider === "azure_devops"
+                                  ? "bg-[var(--color-primary)] text-white shadow-sm"
+                                  : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:text-white"
+                              }`}
+                            >
+                              Azure DevOps
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAlmProvider("jira");
+                                workflowApi.almPreview(id, "jira").then((res) => setAlmPreview(res.preview));
+                              }}
+                              className={`px-2.5 py-0.5 text-[10px] font-bold rounded-lg transition-colors ${
+                                almProvider === "jira"
+                                  ? "bg-[var(--color-primary)] text-white shadow-sm"
+                                  : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:text-white"
+                              }`}
+                            >
+                              Jira / Xray
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1 font-mono text-[11px]">
+                          <div className="flex items-center gap-1 text-[var(--color-text-secondary)]">
+                            <span className="font-semibold text-[var(--color-text-primary)]">Target:</span> {almPreview.target_system}
+                          </div>
+                          <div className="text-cyan-400 break-all">
+                            <span className="font-semibold text-[var(--color-text-primary)]">Endpoint:</span> {almPreview.endpoint}
+                          </div>
+                        </div>
+
+                        <pre className="rounded-lg bg-[#0d1117] p-3 text-[11px] font-mono text-emerald-300 overflow-x-auto max-h-40 border border-white/5">
+                          {JSON.stringify(almPreview.payload, null, 2)}
+                        </pre>
+                      </div>
+                    )}
 
                     {/* Reviewer Note / Comment Input */}
                     <div className="space-y-1.5">
@@ -480,6 +566,30 @@ export function WorkflowDetailPage() {
               <span className="rounded-full bg-[var(--color-surface)] px-1.5 py-0.2 text-[10px] font-bold text-[var(--color-text-secondary)]">
                 {evidenceList.length}
               </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("sla")}
+              className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold transition-all ${
+                activeTab === "sla"
+                  ? "bg-[var(--color-primary)] text-white shadow-md shadow-[var(--color-primary)]/20"
+                  : "bg-[var(--color-surface-elevated)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+              }`}
+            >
+              <Gauge size={14} />
+              <span>SLA & Evaluation</span>
+              {slaData && (
+                <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                  slaData.overall_sla_status === "MET"
+                    ? "bg-emerald-500/20 text-emerald-300"
+                    : slaData.overall_sla_status === "BREACHED"
+                    ? "bg-red-500/20 text-red-300"
+                    : "bg-blue-500/20 text-blue-300"
+                }`}>
+                  {slaData.overall_sla_status}
+                </span>
+              )}
             </button>
 
             {pastApprovals.length > 0 && (
@@ -924,18 +1034,41 @@ export function WorkflowDetailPage() {
           {/* TAB 4: AUDIT EVIDENCE ARTIFACTS */}
           {activeTab === "evidence" && (
             <Card>
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="font-display text-base font-bold text-[var(--color-text-primary)]">
                     Execution Evidence & Audit Proof
                   </h2>
                   <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
-                    Immutable, SHA256-signed test evidence markdown documents ready for regulatory audit.
+                    Immutable, SHA256-signed test evidence documents exportable in HTML, Markdown, and JSON.
                   </p>
                 </div>
-                <span className="rounded-full bg-[var(--color-surface-elevated)] px-2.5 py-1 font-mono text-xs text-[var(--color-text-secondary)]">
-                  {evidenceList.length} Artifact(s)
-                </span>
+
+                <div className="flex items-center gap-2">
+                  <a
+                    href={workflowApi.getEvidenceDownloadUrl(id, "html")}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--color-primary)] hover:bg-[var(--color-primary)]/20 transition-colors"
+                  >
+                    <Download size={13} />
+                    <span>Download HTML Report</span>
+                  </a>
+
+                  <a
+                    href={workflowApi.getEvidenceDownloadUrl(id, "json")}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text-secondary)] hover:text-white transition-colors"
+                  >
+                    <FileCode size={13} />
+                    <span>JSON Bundle</span>
+                  </a>
+
+                  <span className="rounded-full bg-[var(--color-surface-elevated)] px-2.5 py-1 font-mono text-xs text-[var(--color-text-secondary)]">
+                    {evidenceList.length} Artifact(s)
+                  </span>
+                </div>
               </div>
 
               {evidenceList.length === 0 ? (
@@ -968,18 +1101,179 @@ export function WorkflowDetailPage() {
                           </p>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <a
+                            href={workflowApi.getEvidenceDownloadUrl(id, "html")}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-xs rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-2.5 py-1.5 font-medium text-[var(--color-text-secondary)] hover:text-white transition-colors"
+                          >
+                            <Printer size={13} /> Print / HTML
+                          </a>
+
                           <Button
                             variant="secondary"
                             onClick={() => setSelectedEvidence(e)}
                             className="flex items-center gap-1.5 text-xs py-1.5 px-3 font-semibold"
                           >
-                            <FileText size={14} /> View Markdown Evidence
+                            <FileText size={14} /> View Markdown
                           </Button>
                         </div>
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </Card>
+          )}
+
+          {/* TAB: SLA & EVALUATION METRICS */}
+          {activeTab === "sla" && (
+            <Card>
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h2 className="font-display text-base font-bold text-[var(--color-text-primary)] flex items-center gap-2">
+                    <Gauge className="text-[var(--color-primary)]" size={18} />
+                    Workflow SLA & Quality Gate Evaluation
+                  </h2>
+                  <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
+                    Real-time measurement against architectural SLAs, requirement coverage targets, quality gates, and cost metrics.
+                  </p>
+                </div>
+
+                {slaData && (
+                  <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider border ${
+                    slaData.overall_sla_status === "MET"
+                      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                      : slaData.overall_sla_status === "BREACHED"
+                      ? "bg-red-500/20 text-red-300 border-red-500/40"
+                      : "bg-blue-500/20 text-blue-300 border-blue-500/40"
+                  }`}>
+                    Overall SLA: {slaData.overall_sla_status}
+                  </span>
+                )}
+              </div>
+
+              {!slaData ? (
+                <div className="rounded-xl border border-dashed border-[var(--color-border)] p-8 text-center">
+                  <Gauge size={32} className="mx-auto text-[var(--color-text-secondary)]/40 mb-2" />
+                  <p className="text-xs font-medium text-[var(--color-text-secondary)]">
+                    SLA data is calculating for this workflow run...
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Key SLA Metric Cards */}
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)]/50 p-4 space-y-1">
+                      <div className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
+                        <span className="font-semibold">Pipeline Latency</span>
+                        <Timer size={14} className="text-[var(--color-primary)]" />
+                      </div>
+                      <div className="text-lg font-bold font-mono text-[var(--color-text-primary)]">
+                        {(slaData.total_actual_latency_ms / 1000).toFixed(2)}s
+                      </div>
+                      <div className="text-[10px] text-[var(--color-text-secondary)]">
+                        Target: &le; {(slaData.total_target_latency_ms / 1000).toFixed(1)}s max
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)]/50 p-4 space-y-1">
+                      <div className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
+                        <span className="font-semibold">Requirement Coverage</span>
+                        <Layers size={14} className="text-cyan-400" />
+                      </div>
+                      <div className="text-lg font-bold font-mono text-cyan-300">
+                        {slaData.requirement_coverage.coverage_percentage}%
+                      </div>
+                      <div className="text-[10px] text-[var(--color-text-secondary)]">
+                        Target: &ge; {slaData.requirement_coverage.target_percentage}% ({slaData.requirement_coverage.generated_test_cases} tests / {slaData.requirement_coverage.total_acceptance_criteria} ACs)
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)]/50 p-4 space-y-1">
+                      <div className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
+                        <span className="font-semibold">Code Quality Gate</span>
+                        <ShieldCheck size={14} className={slaData.quality_gate.status === "PASS" ? "text-emerald-400" : "text-red-400"} />
+                      </div>
+                      <div className={`text-lg font-bold font-mono ${slaData.quality_gate.status === "PASS" ? "text-emerald-300" : "text-red-300"}`}>
+                        {slaData.quality_gate.score}% ({slaData.quality_gate.status})
+                      </div>
+                      <div className="text-[10px] text-[var(--color-text-secondary)]">
+                        Quality Threshold: &ge; {slaData.quality_gate.threshold}%
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)]/50 p-4 space-y-1">
+                      <div className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
+                        <span className="font-semibold">Token & Cost Est.</span>
+                        <Coins size={14} className="text-amber-400" />
+                      </div>
+                      <div className="text-lg font-bold font-mono text-amber-300">
+                        ${slaData.token_observability.estimated_cost_usd.toFixed(4)}
+                      </div>
+                      <div className="text-[10px] text-[var(--color-text-secondary)]">
+                        Est. Tokens: {slaData.token_observability.estimated_total_tokens.toLocaleString()} (Gemini Flash)
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Stage Latency SLA Breakdown Table */}
+                  <div className="space-y-3">
+                    <h3 className="font-display text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
+                      Stage Latency SLA Performance
+                    </h3>
+                    <div className="overflow-x-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
+                      <table className="w-full text-left text-xs">
+                        <thead className="border-b border-[var(--color-border)] bg-[var(--color-surface-elevated)] text-[var(--color-text-secondary)] font-mono text-[11px]">
+                          <tr>
+                            <th className="p-3">Stage / Responsibility</th>
+                            <th className="p-3">Execution Tier</th>
+                            <th className="p-3">Target SLA</th>
+                            <th className="p-3">Actual Latency</th>
+                            <th className="p-3">Variance (&Delta;)</th>
+                            <th className="p-3 text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[var(--color-border)]">
+                          {slaData.stage_metrics.map((m) => (
+                            <tr key={m.stage} className="hover:bg-[var(--color-surface-elevated)]/30 transition-colors">
+                              <td className="p-3 font-semibold text-[var(--color-text-primary)]">
+                                {m.label}
+                              </td>
+                              <td className="p-3 text-[var(--color-text-secondary)]">
+                                <span className="rounded bg-[var(--color-surface-elevated)] px-2 py-0.5 font-mono text-[10px]">
+                                  {m.tier}
+                                </span>
+                              </td>
+                              <td className="p-3 font-mono text-[var(--color-text-secondary)]">
+                                &le; {m.target_ms}ms
+                              </td>
+                              <td className="p-3 font-mono font-bold text-[var(--color-text-primary)]">
+                                {m.executed ? `${m.actual_ms}ms` : "-"}
+                              </td>
+                              <td className="p-3 font-mono text-[11px]">
+                                {m.executed ? (
+                                  <span className={m.delta_ms <= 0 ? "text-emerald-400" : "text-red-400"}>
+                                    {m.delta_ms <= 0 ? `${m.delta_ms}ms` : `+${m.delta_ms}ms`}
+                                  </span>
+                                ) : "-"}
+                              </td>
+                              <td className="p-3 text-center">
+                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                                  m.status === "MET" ? "bg-emerald-500/20 text-emerald-300" :
+                                  m.status === "BREACHED" ? "bg-red-500/20 text-red-300" :
+                                  "bg-gray-500/20 text-gray-400"
+                                }`}>
+                                  {m.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
               )}
             </Card>
