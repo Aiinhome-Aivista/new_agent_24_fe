@@ -38,21 +38,44 @@ export function NewWorkflowPage() {
   const [starting, setStarting] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Load projects & stories
+  // Load projects, stories, and workflows
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
-        const [pRes, sRes] = await Promise.all([
+        const [pRes, sRes, wRes] = await Promise.all([
           projectApi.list(),
           storyApi.list(selectedProject || undefined),
+          workflowApi.list(),
         ]);
         setProjects(pRes.projects ?? []);
-        setStories(sRes.stories ?? []);
+
+        // Map existing workflows by story
+        const storyWfMap = new Map<string, { workflow_id: string; status: string; current_stage: string }>();
+        (wRes.workflows ?? []).forEach((w) => {
+          if (w.story_id) storyWfMap.set(String(w.story_id), { workflow_id: w.workflow_id, status: w.status, current_stage: w.current_stage });
+          if (w.story_key) storyWfMap.set(w.story_key, { workflow_id: w.workflow_id, status: w.status, current_stage: w.current_stage });
+          if (w.story_title) storyWfMap.set(w.story_title, { workflow_id: w.workflow_id, status: w.status, current_stage: w.current_stage });
+        });
+
+        const enrichedStories = (sRes.stories ?? []).map((s) => {
+          const match = s.workflow_id
+            ? { workflow_id: s.workflow_id, status: s.workflow_status || "RUNNING", current_stage: s.workflow_stage || "CREATED" }
+            : (s.external_key ? storyWfMap.get(s.external_key) : null) || storyWfMap.get(s.title);
+
+          return {
+            ...s,
+            workflow_id: match?.workflow_id || s.workflow_id,
+            workflow_status: match?.status || s.workflow_status,
+            workflow_stage: match?.current_stage || s.workflow_stage,
+          };
+        });
+
+        setStories(enrichedStories);
 
         // If preselected story is found, ensure its project is set
-        if (preselectStory && sRes.stories) {
-          const match = sRes.stories.find((s) => s.uuid === preselectStory);
+        if (preselectStory && enrichedStories.length > 0) {
+          const match = enrichedStories.find((s) => s.uuid === preselectStory);
           if (match?.project_uuid && !selectedProject) {
             setSelectedProject(match.project_uuid);
           }
@@ -78,7 +101,7 @@ export function NewWorkflowPage() {
       return;
     }
     if (selectedStoryHasWorkflow) {
-      notify("error", "A workflow already exists for this story. Multiple workflows per story are not allowed.");
+      notify("error", "A workflow already exists for this story. Only one workflow per story is permitted.");
       return;
     }
     setStarting(true);
@@ -148,25 +171,26 @@ export function NewWorkflowPage() {
             No user stories found in this project. Create a user story first.
           </div>
         ) : (
-          <div className="flex flex-col gap-2 max-h-72 overflow-y-auto pr-1">
+          <div className="flex flex-col gap-2.5 max-h-80 overflow-y-auto pr-1">
             {stories.map((s) => {
               const isSelected = storyUuid === s.uuid;
               const hasWf = Boolean(s.workflow_id);
               return (
-                <button
+                <div
                   key={s.uuid}
-                  type="button"
                   onClick={() => setStoryUuid(s.uuid)}
-                  className={`flex items-center justify-between rounded-[10px] border p-3 text-left transition-all ${
+                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border p-3.5 text-left transition-all cursor-pointer ${
                     isSelected
                       ? hasWf
                         ? "border-amber-500 bg-amber-500/10 ring-1 ring-amber-500/30"
                         : "border-[var(--color-primary)] bg-[var(--color-primary)]/5 ring-1 ring-[var(--color-primary)]/30"
-                      : "border-[var(--color-border)] hover:border-[var(--color-border-orange)]/60 bg-[var(--color-surface-elevated)]/40"
+                      : hasWf
+                        ? "border-[var(--color-border)] bg-[var(--color-surface-elevated)]/30 hover:border-amber-500/50"
+                        : "border-[var(--color-border)] hover:border-[var(--color-border-orange)]/60 bg-[var(--color-surface-elevated)]/50"
                   }`}
                 >
-                  <div className="flex-1 pr-3">
-                    <div className="flex items-center gap-2 mb-0.5">
+                  <div className="flex-1 min-w-0 pr-2">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
                       <span className="font-mono text-xs font-semibold text-[var(--color-primary)] bg-[var(--color-primary)]/10 px-1.5 py-0.2 rounded">
                         {s.external_key}
                       </span>
@@ -175,12 +199,16 @@ export function NewWorkflowPage() {
                           {s.project_key}
                         </span>
                       )}
-                      <span className="text-xs font-semibold text-[var(--color-text-primary)]">
+                      <span className="text-xs font-semibold text-[var(--color-text-primary)] truncate">
                         {s.title}
                       </span>
-                      {hasWf && (
-                        <span className="inline-flex items-center gap-1 rounded bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-400">
-                          <GitBranch size={10} /> Workflow Exists
+                      {hasWf ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-400">
+                          <GitBranch size={10} /> Workflow Started
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[9px] font-semibold text-emerald-400">
+                          Ready for TDD
                         </span>
                       )}
                     </div>
@@ -190,12 +218,24 @@ export function NewWorkflowPage() {
                       </p>
                     )}
                   </div>
-                  {isSelected && (
-                    <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white ${hasWf ? "bg-amber-500" : "bg-[var(--color-primary)]"}`}>
-                      <Check size={14} />
-                    </div>
-                  )}
-                </button>
+
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    {hasWf && (
+                      <Link
+                        to={`/app/workflows/${s.workflow_id}${selectedProject || s.project_uuid ? `?project=${selectedProject || s.project_uuid}` : ""}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-1 rounded-lg transition-colors"
+                      >
+                        <GitBranch size={11} /> View Workflow <ArrowRight size={10} />
+                      </Link>
+                    )}
+                    {isSelected && (
+                      <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white ${hasWf ? "bg-amber-500" : "bg-[var(--color-primary)]"}`}>
+                        <Check size={14} />
+                      </div>
+                    )}
+                  </div>
+                </div>
               );
             })}
           </div>
@@ -214,7 +254,7 @@ export function NewWorkflowPage() {
                 Workflow already exists for this story
               </p>
               <p className="text-[11px] text-[var(--color-text-secondary)] mt-0.5">
-                Story <span className="font-mono font-medium text-[var(--color-text-primary)]">{selectedStoryObj.external_key}</span> has an active or completed workflow (ID: <span className="font-mono">{selectedStoryObj.workflow_id?.slice(0, 8)}…</span>). Each story can only have one workflow.
+                Story <span className="font-mono font-medium text-[var(--color-text-primary)]">{selectedStoryObj.external_key}</span> has a workflow (ID: <span className="font-mono">{selectedStoryObj.workflow_id?.slice(0, 8)}…</span>). Each story can only have one workflow.
               </p>
             </div>
           </div>

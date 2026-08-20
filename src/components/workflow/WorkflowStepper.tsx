@@ -16,7 +16,12 @@ export function WorkflowStepper({
   isSubmitting?: boolean;
 }) {
   const currentIdx = WORKFLOW_STAGES.indexOf(current);
-  const isWaiting = status === "WAITING_FOR_REVIEW" || status === "WAITING_FOR_APPROVAL";
+  const isCompleted =
+    status === "COMPLETED" ||
+    status === "APPROVED" ||
+    (current === "DONE" && status !== "FAILED" && status !== "BLOCKED" && status !== "CANCELLED");
+  const isWaiting =
+    (status === "WAITING_FOR_REVIEW" || status === "WAITING_FOR_APPROVAL") && !isCompleted;
 
   return (
     <div className="flex flex-col gap-3">
@@ -59,8 +64,10 @@ export function WorkflowStepper({
 
       <div className="flex flex-col gap-1.5">
         {WORKFLOW_STAGES.map((stage, i) => {
-          const done = i < currentIdx;
-          const active = i === currentIdx;
+          const isCurrentStage = i === currentIdx;
+          const isPastStage = i < currentIdx;
+          const done = isCompleted ? (isPastStage || isCurrentStage) : isPastStage;
+          const active = !isCompleted && isCurrentStage;
           const isCheckpoint = HUMAN_CHECKPOINTS.has(stage);
           const isActionRequired = active && (isCheckpoint || isWaiting);
 
@@ -70,6 +77,8 @@ export function WorkflowStepper({
               className={`flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors ${
                 isActionRequired
                   ? "bg-amber-500/10 border border-amber-500/30"
+                  : isCompleted && stage === "DONE"
+                  ? "bg-emerald-500/10 border border-emerald-500/30"
                   : active
                   ? "bg-[var(--color-surface-elevated)]"
                   : ""
@@ -101,15 +110,15 @@ export function WorkflowStepper({
 
               <div className="flex flex-1 items-center justify-between min-w-0">
                 <motion.span
-                  animate={{ opacity: active ? 1 : done ? 0.9 : 0.5 }}
+                  animate={{ opacity: active || done ? 1 : 0.5 }}
                   className="text-xs truncate"
                   style={{
                     color: isActionRequired
                       ? "var(--color-warning)"
-                      : active
+                      : active || done
                       ? "var(--color-text-primary)"
                       : "var(--color-text-secondary)",
-                    fontWeight: active ? 600 : 400,
+                    fontWeight: active || done ? 600 : 400,
                   }}
                 >
                   {stage.replace(/_/g, " ")}
@@ -118,6 +127,10 @@ export function WorkflowStepper({
                 {isActionRequired ? (
                   <span className="shrink-0 rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-400 animate-pulse">
                     Action Required
+                  </span>
+                ) : isCompleted && stage === "DONE" ? (
+                  <span className="shrink-0 rounded bg-emerald-500/20 border border-emerald-500/40 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider text-emerald-400">
+                    Complete
                   </span>
                 ) : isCheckpoint ? (
                   <span className="shrink-0 rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] px-1 py-0.2 text-[9px] font-medium text-[var(--color-primary)]">

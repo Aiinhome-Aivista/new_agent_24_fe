@@ -189,28 +189,14 @@ export function WorkflowDetailPage() {
   const currentStatus = status?.status || workflowDetail?.status || "RUNNING";
 
   const isWaiting =
-    currentStatus === "WAITING_FOR_REVIEW" ||
-    currentStatus === "WAITING_FOR_APPROVAL" ||
-    ["TEST_REVIEW", "EVIDENCE_REVIEW", "ALM_APPROVAL", "ALM_ATTACHMENT"].includes(currentStage);
+    (currentStatus === "WAITING_FOR_REVIEW" || currentStatus === "WAITING_FOR_APPROVAL") &&
+    ["TEST_REVIEW", "EVIDENCE_REVIEW", "ALM_APPROVAL"].includes(currentStage);
 
   const pendingApprovals = approvalsList.filter((a) => a.decision === "PENDING");
   const pastApprovals = approvalsList.filter((a) => a.decision !== "PENDING");
 
-  // Always construct active approvals if pipeline is halted at a checkpoint
-  const displayApprovals: Approval[] =
-    pendingApprovals.length > 0
-      ? pendingApprovals
-      : isWaiting
-      ? [
-          {
-            uuid: approvalsList[0]?.uuid || id,
-            workflow_id: id,
-            stage: currentStage,
-            decision: "PENDING",
-            requested_at: new Date().toISOString(),
-          },
-        ]
-      : [];
+  // Display only real pending approvals
+  const displayApprovals: Approval[] = pendingApprovals;
 
   const latestExec = executionRuns[0];
   const latestQuality = codeQualityRuns[0];
