@@ -38,7 +38,7 @@ export function WorkflowViz() {
       {HERO_STEPS.map((step, i) => (
         <div key={step} className="flex items-center">
           <div data-node
-            className="surface-elevated flex h-16 min-w-[104px] items-center justify-center px-3 text-center text-sm font-medium text-[var(--color-text-primary)]">
+            className="surface-elevated flex h-16 min-w-[90px] items-center justify-center px-3 text-center text-sm font-medium text-[var(--color-text-primary)]">
             {step}
           </div>
           {i < HERO_STEPS.length - 1 && (
