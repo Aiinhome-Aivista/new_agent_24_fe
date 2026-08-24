@@ -7,13 +7,13 @@ import { pageTransition } from "@/styles/motion";
 export function AppLayout() {
   const location = useLocation();
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-screen flex-col overflow-hidden">
       <Topbar />
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden min-w-0">
         <Sidebar />
-        <main className="flex-1 overflow-y-auto bg-[var(--color-background)] p-6">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 bg-[var(--color-background)] p-4 sm:p-6">
           <AnimatePresence mode="wait">
-            <motion.div key={location.pathname} {...pageTransition}>
+            <motion.div key={location.pathname} {...pageTransition} className="w-full min-w-0">
               <Outlet />
             </motion.div>
           </AnimatePresence>

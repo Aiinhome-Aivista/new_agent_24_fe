@@ -113,6 +113,41 @@ export interface WorkflowRun {
   created_at?: string;
 }
 
+export interface CodeFileWriteInfo {
+  file_path: string;
+  relative_path?: string;
+  lines_count: number;
+  class_name?: string;
+  tests_count?: number;
+}
+
+export interface CodeLog {
+  workflow_id: string;
+  generated_at: string;
+  target_language: string;
+  target_framework: string;
+  total_tests_generated: number;
+  total_lines_generated: number;
+  elapsed_ms: number;
+  files_written: CodeFileWriteInfo[];
+  log_entries: string[];
+}
+
+export interface RequestSpec {
+  method: string;
+  endpoint: string;
+  headers?: Record<string, string>;
+  body?: any;
+}
+
+export interface ExpectedResponseSpec {
+  status_code: number | string;
+  status_source?: "CONTRACT_SPECIFIED" | "AI_ASSUMPTION" | string;
+  status_note?: string;
+  response_body?: any;
+  assertions?: string[];
+}
+
 export interface TestCase {
   uuid: string;
   test_key: string;
@@ -122,8 +157,12 @@ export interface TestCase {
   origin: string;
   priority: string;
   description?: string;
+  story_reference?: string;
+  request_spec?: RequestSpec;
+  expected_response_spec?: ExpectedResponseSpec;
   expected_result?: string;
   risk?: string;
+  responsible_functions?: string[] | string;
   generated_code?: string;
   target_language?: string;
   framework?: string;
