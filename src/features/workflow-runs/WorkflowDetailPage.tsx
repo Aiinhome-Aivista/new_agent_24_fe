@@ -117,17 +117,27 @@ export function WorkflowDetailPage() {
   const [comments, setComments] = useState<Record<string, string>>({});
   const [submittingUuid, setSubmittingUuid] = useState<string | null>(null);
 
-  // Smart polling: stop continuous polling once workflow is finished or blocked
-  const isTerminal = ["COMPLETED", "FAILED", "CANCELLED", "BLOCKED"].includes(
-    workflowDetail?.status || ""
+  // Smart polling: stop continuous polling once workflow is finished, blocked, or paused at Human Checkpoints
+  const isPausedOrDone = [
+    "COMPLETED",
+    "FAILED",
+    "CANCELLED",
+    "BLOCKED",
+    "WAITING_FOR_REVIEW",
+    "WAITING_FOR_APPROVAL",
+  ].includes(workflowDetail?.status || "");
+
+  const status = usePolling(
+    () => workflowApi.status(id),
+    2500,
+    !isPausedOrDone && !loadingInitial
   );
-  const status = usePolling(() => workflowApi.status(id), 2500, !isTerminal);
 
   // Fetch all workflow data
   const refreshData = async () => {
     try {
       const [dRes, tRes, aRes, eRes, execRes, cqRes, slaRes, almRes, clRes] = await Promise.all([
-        workflowApi.detail(id),
+        workflowApi.detail(id).catch(() => ({ workflow: null })),
         testApi.forWorkflow(id).catch(() => ({ test_cases: [] })),
         approvalApi.forWorkflow(id).catch(() => ({ approvals: [] })),
         evidenceApi.forWorkflow(id).catch(() => ({ evidence: [] })),
@@ -137,7 +147,7 @@ export function WorkflowDetailPage() {
         workflowApi.almPreview(id, almProvider).catch(() => ({ preview: null })),
         testApi.codeLog(id).catch(() => ({ code_log: null })),
       ]);
-      setWorkflowDetail(dRes.workflow);
+      if (dRes?.workflow) setWorkflowDetail(dRes.workflow);
       setTests(tRes.test_cases ?? []);
       setApprovalsList(aRes.approvals ?? []);
       setEvidenceList((eRes.evidence as EvidencePackage[]) ?? []);
@@ -188,6 +198,7 @@ export function WorkflowDetailPage() {
       const stageName = a.stage.replace(/_/g, " ");
       if (decision === "APPROVED") {
         notify("success", `Approved: ${stageName} — pipeline continuing.`);
+        setWorkflowDetail((prev) => (prev ? { ...prev, status: "RUNNING" } : prev));
       } else if (decision === "CHANGES_REQUESTED") {
         notify("warning", `Changes requested on ${stageName}.`);
       } else {

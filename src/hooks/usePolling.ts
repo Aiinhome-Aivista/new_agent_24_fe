@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 
-/** Polls an async fn on an interval — used by the workflow execution monitor. */
+/**
+ * Smart adaptive polling hook.
+ * - Polls only when `active` is true.
+ * - Automatically pauses when browser tab is inactive/hidden to conserve resources.
+ * - Resumes immediately on tab focus.
+ */
 export function usePolling<T>(fn: () => Promise<T>, intervalMs = 2500, active = true) {
   const [data, setData] = useState<T | null>(null);
   const saved = useRef(fn);
@@ -8,11 +13,39 @@ export function usePolling<T>(fn: () => Promise<T>, intervalMs = 2500, active = 
 
   useEffect(() => {
     if (!active) return;
+
     let alive = true;
-    const tick = () => saved.current().then((d) => { if (alive) setData(d); }).catch(() => undefined);
+    let timerId: ReturnType<typeof setInterval> | null = null;
+
+    const tick = async () => {
+      if (document.hidden || !alive) return;
+      try {
+        const result = await saved.current();
+        if (alive) setData(result);
+      } catch {
+        // Silently ignore transient network drops during polling
+      }
+    };
+
+    // Immediate initial poll
     tick();
-    const id = setInterval(tick, intervalMs);
-    return () => { alive = false; clearInterval(id); };
+
+    // Start interval timer
+    timerId = setInterval(tick, intervalMs);
+
+    // Visibility change listener
+    const handleVisibilityChange = () => {
+      if (!document.hidden && alive) {
+        tick();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      alive = false;
+      if (timerId) clearInterval(timerId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [intervalMs, active]);
 
   return data;

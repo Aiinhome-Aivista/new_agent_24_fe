@@ -28,8 +28,8 @@ export function ApprovalsPage() {
   const [tick, setTick] = useState(0);
   const [projects, setProjects] = useState<Project[]>([]);
 
-  // Poll pending approvals every 3s
-  const pollingData = usePolling(() => approvalApi.pending(), 3000, true);
+  // Poll pending approvals gently every 10s
+  const pollingData = usePolling(() => approvalApi.pending(), 10000, true);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [loading, setLoading] = useState(true);
 
