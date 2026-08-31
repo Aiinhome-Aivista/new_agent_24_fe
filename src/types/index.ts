@@ -111,6 +111,7 @@ export interface WorkflowRun {
   story_title?: string;
   story_key?: string;
   created_at?: string;
+  state_json?: any;
 }
 
 export interface CodeFileWriteInfo {

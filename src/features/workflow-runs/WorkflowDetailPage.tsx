@@ -63,6 +63,10 @@ import {
 } from "lucide-react";
 
 const CHECKPOINT_GUIDES: Record<string, { title: string; desc: string }> = {
+  TEST_PLAN_REVIEW: {
+    title: "Stage 4 · Test Plan & API Contract Review",
+    desc: "Review missing functions or endpoints detected between the planned API contracts and the provided user story or Postman collection.",
+  },
   TEST_REVIEW: {
     title: "Stage 6 · Test Suite Review & Sign-Off",
     desc: "The autonomous agent has analyzed user story acceptance criteria and generated the test suite. Review test cases and mock contracts before authorizing code generation.",
@@ -106,6 +110,8 @@ export function WorkflowDetailPage() {
   const [almPreview, setAlmPreview] = useState<AlmPreview | null>(null);
   const [codeLogData, setCodeLogData] = useState<CodeLog | null>(null);
   const [showCodeLog, setShowCodeLog] = useState(true);
+  const [showTestCases, setShowTestCases] = useState(true);
+  const [showCoverageMatrix, setShowCoverageMatrix] = useState(true);
   const [almProvider, setAlmProvider] = useState<"azure_devops" | "jira">("azure_devops");
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -449,10 +455,29 @@ export function WorkflowDetailPage() {
                             <span className="font-semibold text-[var(--color-text-primary)]">Endpoint:</span> {almPreview.endpoint}
                           </div>
                         </div>
-
                         <pre className="rounded-lg bg-[#0d1117] p-3 text-[11px] font-mono text-emerald-300 overflow-x-auto max-h-40 border border-white/5">
                           {JSON.stringify(almPreview.payload, null, 2)}
                         </pre>
+                      </div>
+                    )}
+
+                    {/* Test Plan Review - Missing Functions */}
+                    {a.stage === "TEST_PLAN_REVIEW" && workflowDetail?.state_json?.missing_functions && workflowDetail.state_json.missing_functions.length > 0 && (
+                      <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 space-y-3 shadow-inner">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle size={15} className="text-red-400" />
+                          <span className="text-xs font-bold text-red-400">
+                            Missing Functions / Endpoints Detected
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-red-300/80">
+                          The following required functions were not found in the provided user story or Postman collection. Do you want to skip and proceed anyway?
+                        </p>
+                        <ul className="list-disc pl-5 text-[11px] text-red-300 font-mono space-y-1">
+                          {workflowDetail.state_json.missing_functions.map((func: string, idx: number) => (
+                            <li key={idx}>{func}</li>
+                          ))}
+                        </ul>
                       </div>
                     )}
 
@@ -643,7 +668,10 @@ export function WorkflowDetailPage() {
           {/* TAB 1: GENERATED TEST CASES & CODE */}
           {activeTab === "tests" && (
             <Card>
-              <div className="mb-4 flex items-center justify-between">
+              <div 
+                className="mb-4 flex items-center justify-between cursor-pointer select-none hover:bg-white/[0.02] p-2 -m-2 rounded-lg transition-colors"
+                onClick={() => setShowTestCases(!showTestCases)}
+              >
                 <div>
                   <h2 className="font-display text-base font-bold text-[var(--color-text-primary)] flex items-center gap-2">
                     <FlaskConical size={18} className="text-[var(--color-primary)]" />
@@ -653,12 +681,19 @@ export function WorkflowDetailPage() {
                     Decomposed test scenarios mapped to responsible codebase functions and synthesised test classes.
                   </p>
                 </div>
-                <span className="rounded-full bg-[var(--color-primary)]/10 px-2.5 py-1 font-mono text-xs font-bold text-[var(--color-primary)]">
-                  {tests.length} Total Tests
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="rounded-full bg-[var(--color-primary)]/10 px-2.5 py-1 font-mono text-xs font-bold text-[var(--color-primary)]">
+                    {tests.length} Total Tests
+                  </span>
+                  <button type="button" className="text-zinc-400 hover:text-white">
+                    {showTestCases ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                  </button>
+                </div>
               </div>
 
-              {/* GENERATION QUALITY SUMMARY */}
+              {showTestCases && (
+                <>
+                  {/* GENERATION QUALITY SUMMARY */}
               {generationSummary && (
                 <div className="mb-4 grid gap-3 grid-cols-2 sm:grid-cols-4">
                   <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 space-y-1">
@@ -721,20 +756,30 @@ export function WorkflowDetailPage() {
               {/* ACCEPTANCE CRITERIA COVERAGE MATRIX TABLE */}
               {coverageMatrix && coverageMatrix.length > 0 && (
                 <div className="mb-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden shadow-sm">
-                  <div className="p-3 bg-[var(--color-surface-elevated)] border-b border-[var(--color-border)] flex items-center justify-between">
+                  <div 
+                    className="p-3 bg-[var(--color-surface-elevated)] border-b border-[var(--color-border)] flex items-center justify-between cursor-pointer select-none hover:bg-[#1f242c] transition-colors"
+                    onClick={() => setShowCoverageMatrix(!showCoverageMatrix)}
+                  >
                     <div className="flex items-center gap-2">
                       <CheckCircle2 size={15} className="text-emerald-400" />
                       <span className="text-xs font-bold text-[var(--color-text-primary)]">
                         Acceptance Criteria Coverage Matrix
                       </span>
+                    </div>
+                    <div className="flex items-center gap-3">
                       <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-mono font-bold text-emerald-300">
                         {coverageMatrix.filter(c => c.covered).length}/{coverageMatrix.length} Covered ({coverageMatrix.filter(c => c.covered).length === coverageMatrix.length ? '100%' : `${Math.round(coverageMatrix.filter(c => c.covered).length / coverageMatrix.length * 100)}%`})
                       </span>
+                      <button type="button" className="text-zinc-400 hover:text-white">
+                        {showCoverageMatrix ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </button>
                     </div>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-[#161b22] text-[10px] uppercase font-bold text-[var(--color-text-secondary)] border-b border-[var(--color-border)]">
+                  
+                  {showCoverageMatrix && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-[#161b22] text-[10px] uppercase font-bold text-[var(--color-text-secondary)] border-b border-[var(--color-border)]">
                         <tr>
                           <th className="p-2.5 w-20">AC Key</th>
                           <th className="p-2.5">Requirement</th>
@@ -784,6 +829,7 @@ export function WorkflowDetailPage() {
                       </tbody>
                     </table>
                   </div>
+                  )}
                 </div>
               )}
 
@@ -1300,6 +1346,8 @@ export function WorkflowDetailPage() {
                     );
                   })}
                 </div>
+              )}
+              </>
               )}
             </Card>
           )}
