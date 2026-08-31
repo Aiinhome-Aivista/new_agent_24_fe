@@ -1,9 +1,14 @@
 import { apiClient, unwrap } from "./apiClient";
-import type { TestCase, ExecutionRun, CodeQualityRun, CodeLog } from "@/types";
+import type { TestCase, ExecutionRun, CodeQualityRun, CodeLog, CoverageMatrixItem, GenerationSummary, ContractGap } from "@/types";
 
 export const testApi = {
   forWorkflow: (id: string) =>
-    unwrap<{ test_cases: TestCase[] }>(apiClient.get(`/workflows/${id}/test-cases`)),
+    unwrap<{
+      test_cases: TestCase[];
+      coverage_matrix?: CoverageMatrixItem[];
+      generation_summary?: GenerationSummary;
+      contract_gaps?: ContractGap[];
+    }>(apiClient.get(`/workflows/${id}/test-cases`)),
   setStatus: (uuid: string, status: string) =>
     unwrap(apiClient.post(`/test-cases/${uuid}/status`, { status })),
   executions: (id: string) =>

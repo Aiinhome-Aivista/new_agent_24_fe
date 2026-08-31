@@ -34,6 +34,8 @@ import {
   UploadCloud,
   Plug,
   Loader2,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 
 const healthColor: Record<string, string> = {
@@ -61,6 +63,25 @@ export function ProjectDashboardPage() {
   const [createStoryOpen, setCreateStoryOpen] = useState(false);
   const [testingGit, setTestingGit] = useState(false);
   const [gitResult, setGitResult] = useState<GitConnectionResult | null>(null);
+  const [storyToDelete, setStoryToDelete] = useState<Story | null>(null);
+  const [deletingStory, setDeletingStory] = useState(false);
+  const [deleteStoryError, setDeleteStoryError] = useState<string | null>(null);
+
+  const handleDeleteStory = async () => {
+    if (!storyToDelete) return;
+    setDeletingStory(true);
+    setDeleteStoryError(null);
+    try {
+      await storyApi.delete(storyToDelete.uuid);
+      notify("success", `Story ${storyToDelete.external_key} deleted successfully`);
+      setStoryToDelete(null);
+      await loadProjectData();
+    } catch (err: any) {
+      setDeleteStoryError(err?.message || "Failed to delete story");
+    } finally {
+      setDeletingStory(false);
+    }
+  };
 
   // RAG Query Sandbox State
   const [ragQuery, setRagQuery] = useState("");
@@ -361,23 +382,36 @@ export function ProjectDashboardPage() {
                             <span>Coverage: {Math.round(s.coverage_pct || 0)}%</span>
                           </div>
                         </div>
-                        {s.workflow_id ? (
-                          <Button
-                            variant="secondary"
-                            onClick={() => navigate(`/app/workflows/${s.workflow_id}${project?.uuid ? `?project=${project.uuid}` : ""}`)}
-                            className="text-xs shrink-0 py-1 px-2.5 h-7 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 font-semibold"
+                        <div className="flex items-center gap-2 shrink-0">
+                          {s.workflow_id ? (
+                            <Button
+                              variant="secondary"
+                              onClick={() => navigate(`/app/workflows/${s.workflow_id}${project?.uuid ? `?project=${project.uuid}` : ""}`)}
+                              className="text-xs shrink-0 py-1 px-2.5 h-7 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 font-semibold"
+                            >
+                              <GitBranch size={12} /> View Workflow
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="secondary"
+                              onClick={() => navigate(`/app/new-workflow?story=${s.uuid}${project?.uuid ? `&project=${project.uuid}` : ""}`)}
+                              className="text-xs shrink-0 py-1 px-2.5 h-7"
+                            >
+                              <Play size={12} /> Run TDD
+                            </Button>
+                          )}
+                          <button
+                            type="button"
+                            title="Delete story"
+                            onClick={() => {
+                              setDeleteStoryError(null);
+                              setStoryToDelete(s);
+                            }}
+                            className="rounded p-1 text-zinc-400 hover:bg-rose-500/10 hover:text-rose-400 transition-colors"
                           >
-                            <GitBranch size={12} /> View Workflow
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="secondary"
-                            onClick={() => navigate(`/app/new-workflow?story=${s.uuid}${project?.uuid ? `&project=${project.uuid}` : ""}`)}
-                            className="text-xs shrink-0 py-1 px-2.5 h-7"
-                          >
-                            <Play size={12} /> Run TDD
-                          </Button>
-                        )}
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -661,6 +695,17 @@ export function ProjectDashboardPage() {
                           <Play size={13} /> Run TDD Workflow
                         </Button>
                       )}
+                      <button
+                        type="button"
+                        title="Delete story"
+                        onClick={() => {
+                          setDeleteStoryError(null);
+                          setStoryToDelete(s);
+                        }}
+                        className="rounded p-1.5 text-zinc-400 hover:bg-rose-500/10 hover:text-rose-400 transition-colors"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   </Card>
                 ))}
@@ -853,6 +898,65 @@ export function ProjectDashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Story Confirmation Modal */}
+      {storyToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="rounded-lg bg-rose-500/10 p-2 text-rose-400 shrink-0">
+                <AlertTriangle size={22} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-bold text-[var(--color-text-primary)]">
+                  Delete User Story
+                </h3>
+                <p className="text-xs text-[var(--color-text-secondary)] mt-1 leading-relaxed">
+                  Are you sure you want to delete <strong className="text-white font-semibold">{storyToDelete.external_key}: {storyToDelete.title}</strong>?
+                </p>
+                <p className="text-[11px] text-rose-300/90 mt-1.5 bg-rose-500/10 border border-rose-500/20 rounded p-2">
+                  This will remove the story, its acceptance criteria, and any associated test and knowledge data from the database.
+                </p>
+              </div>
+            </div>
+
+            {deleteStoryError && (
+              <div className="rounded-lg bg-rose-500/15 border border-rose-500/30 p-2.5 text-xs text-rose-300">
+                {deleteStoryError}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[var(--color-border)]">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setStoryToDelete(null);
+                  setDeleteStoryError(null);
+                }}
+                disabled={deletingStory}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                onClick={handleDeleteStory}
+                disabled={deletingStory}
+                className="flex items-center gap-1.5"
+              >
+                {deletingStory ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" /> Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={14} /> Delete Story
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create Story Modal */}
       {createStoryOpen && (

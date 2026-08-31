@@ -10,7 +10,7 @@ import { Loading, ErrorState } from "@/components/ui/Loading";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { CreateStoryModal } from "./CreateStoryModal";
 import type { Story, Project } from "@/types";
-import { Plus, BookOpen, ArrowRight, Layers, GitBranch } from "lucide-react";
+import { Plus, ArrowRight, GitBranch, Trash2, AlertTriangle, Loader2 } from "lucide-react";
 
 export function StoriesPage() {
   const [params, setParams] = useSearchParams();
@@ -21,6 +21,9 @@ export function StoriesPage() {
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [storyToDelete, setStoryToDelete] = useState<Story | null>(null);
+  const [deletingStory, setDeletingStory] = useState(false);
+  const [deleteStoryError, setDeleteStoryError] = useState<string | null>(null);
 
   const loadData = async () => {
     try {
@@ -35,6 +38,21 @@ export function StoriesPage() {
       setError((e as Error).message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteStory = async () => {
+    if (!storyToDelete) return;
+    setDeletingStory(true);
+    setDeleteStoryError(null);
+    try {
+      await storyApi.delete(storyToDelete.uuid);
+      setStoryToDelete(null);
+      await loadData();
+    } catch (err: any) {
+      setDeleteStoryError(err?.message || "Failed to delete story");
+    } finally {
+      setDeletingStory(false);
     }
   };
 
@@ -137,7 +155,7 @@ export function StoriesPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="flex items-center gap-2.5 shrink-0">
                 <StatusBadge status={s.status.toUpperCase()} />
                 {s.workflow_id ? (
                   <Link
@@ -154,9 +172,79 @@ export function StoriesPage() {
                     Start TDD <ArrowRight size={13} />
                   </Link>
                 )}
+                <button
+                  type="button"
+                  title="Delete story"
+                  onClick={() => {
+                    setDeleteStoryError(null);
+                    setStoryToDelete(s);
+                  }}
+                  className="rounded p-1.5 text-zinc-400 hover:bg-rose-500/10 hover:text-rose-400 transition-colors"
+                >
+                  <Trash2 size={15} />
+                </button>
               </div>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Delete Story Confirmation Modal */}
+      {storyToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="rounded-lg bg-rose-500/10 p-2 text-rose-400 shrink-0">
+                <AlertTriangle size={22} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-bold text-[var(--color-text-primary)]">
+                  Delete User Story
+                </h3>
+                <p className="text-xs text-[var(--color-text-secondary)] mt-1 leading-relaxed">
+                  Are you sure you want to delete <strong className="text-white font-semibold">{storyToDelete.external_key}: {storyToDelete.title}</strong>?
+                </p>
+                <p className="text-[11px] text-rose-300/90 mt-1.5 bg-rose-500/10 border border-rose-500/20 rounded p-2">
+                  This will remove the story, its acceptance criteria, and any associated test and knowledge data from the database.
+                </p>
+              </div>
+            </div>
+
+            {deleteStoryError && (
+              <div className="rounded-lg bg-rose-500/15 border border-rose-500/30 p-2.5 text-xs text-rose-300">
+                {deleteStoryError}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[var(--color-border)]">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setStoryToDelete(null);
+                  setDeleteStoryError(null);
+                }}
+                disabled={deletingStory}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                onClick={handleDeleteStory}
+                disabled={deletingStory}
+                className="flex items-center gap-1.5"
+              >
+                {deletingStory ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" /> Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={14} /> Delete Story
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 

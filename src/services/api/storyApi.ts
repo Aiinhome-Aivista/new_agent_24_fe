@@ -26,4 +26,7 @@ export const storyApi = {
 
   addAc: (storyUuid: string, acData: { ac_key?: string; text: string }) =>
     unwrap<AcceptanceCriterion>(apiClient.post(`/stories/${storyUuid}/acceptance-criteria`, acData)),
+
+  delete: (uuid: string) =>
+    unwrap<{ message: string; uuid: string }>(apiClient.delete(`/stories/${uuid}`)),
 };

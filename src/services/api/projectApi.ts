@@ -50,6 +50,9 @@ export const projectApi = {
       apiClient.post("/projects", data)
     ),
 
+  delete: (uuid: string) =>
+    unwrap<{ message: string; uuid: string }>(apiClient.delete(`/projects/${uuid}`)),
+
   testGitConnection: (payload: TestGitConnectionPayload) =>
     unwrap<GitConnectionResult>(
       apiClient.post("/projects/test-git-connection", payload)

@@ -133,6 +133,43 @@ export interface CodeLog {
   log_entries: string[];
 }
 
+export interface CoverageMatrixItem {
+  ac_key: string;
+  requirement: string;
+  full_text?: string;
+  covered: boolean;
+  test_case_keys: string[];
+}
+
+export interface GenerationSummary {
+  total_candidates: number;
+  duplicates_removed: number;
+  final_unique_test_cases: number;
+  acceptance_criteria_total: number;
+  acceptance_criteria_covered: number;
+  coverage_pct: number;
+  coverage_complete: boolean;
+  missing_acceptance_criteria: string[];
+  grounding_confirmed: number;
+  grounding_partially_confirmed: number;
+  needs_review: number;
+  contract_gaps: number;
+}
+
+export interface GroundingSourceItem {
+  source: "STORY" | "ACCEPTANCE_CRITERIA" | "API_CONTRACT" | "POSTMAN" | "PROJECT_KB" | "CODEBASE" | "GLOBAL_KB" | "AI_DERIVED" | "AI_ASSUMPTION" | "UNKNOWN" | string;
+  reference?: string;
+  note?: string;
+}
+
+export interface GroundingMetadata {
+  endpoint?: GroundingSourceItem;
+  status_code?: GroundingSourceItem;
+  request_body?: GroundingSourceItem;
+  response_body?: GroundingSourceItem;
+  overall_grounding?: "CONFIRMED" | "PARTIALLY_CONFIRMED" | "NEEDS_REVIEW" | "AI_DERIVED" | "UNKNOWN" | string;
+}
+
 export interface RequestSpec {
   method: string;
   endpoint: string;
@@ -142,9 +179,10 @@ export interface RequestSpec {
 
 export interface ExpectedResponseSpec {
   status_code: number | string;
-  status_source?: "CONTRACT_SPECIFIED" | "AI_ASSUMPTION" | string;
+  status_source?: "ACCEPTANCE_CRITERIA" | "CONTRACT_SPECIFIED" | "AI_ASSUMPTION" | string;
   status_note?: string;
   response_body?: any;
+  response_body_source?: string;
   assertions?: string[];
 }
 
@@ -152,20 +190,38 @@ export interface TestCase {
   uuid: string;
   test_key: string;
   scenario_type: string;
+  test_type?: "API" | "UNIT" | "INTEGRATION" | string;
   title: string;
   status: string;
   origin: string;
   priority: string;
   description?: string;
   story_reference?: string;
+  acceptance_criteria_ids?: string[];
+  preconditions?: string[] | string;
+  test_data?: any;
+  test_data_source?: string;
+  test_steps?: string[] | string;
   request_spec?: RequestSpec;
   expected_response_spec?: ExpectedResponseSpec;
+  expected_status_code?: number | string | null;
   expected_result?: string;
+  grounding_metadata?: GroundingMetadata;
+  requires_review?: boolean;
+  assumption_details?: string;
   risk?: string;
-  responsible_functions?: string[] | string;
+  responsible_functions?: string[] | string | null;
+  responsible_functions_source?: string;
   generated_code?: string;
   target_language?: string;
   framework?: string;
+}
+
+export interface ContractGap {
+  method: string;
+  endpoint: string;
+  status: string;
+  warning: string;
 }
 
 export interface AssertionItem {
