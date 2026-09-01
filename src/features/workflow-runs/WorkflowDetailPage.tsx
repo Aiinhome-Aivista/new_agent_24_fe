@@ -1,5 +1,5 @@
 import { useParams, useSearchParams, Link } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePolling } from "@/hooks/usePolling";
 import { workflowApi } from "@/services/api/workflowApi";
 import { testApi } from "@/services/api/testApi";
@@ -145,19 +145,19 @@ export function WorkflowDetailPage() {
     !isPausedOrDone && !loadingInitial
   );
 
-  // Fetch all workflow data
-  const refreshData = async () => {
+  // References to track stage and status changes during polling
+  const prevStageRef = useRef<string | null>(null);
+  const prevStatusRef = useRef<string | null>(null);
+
+  // Fetch core workflow data (essential for main view)
+  const refreshCoreData = async () => {
     try {
-      const [dRes, tRes, aRes, eRes, execRes, cqRes, slaRes, almRes, clRes] = await Promise.all([
+      const [dRes, tRes, aRes, clRes, slaRes] = await Promise.all([
         workflowApi.detail(id).catch(() => ({ workflow: null })),
         testApi.forWorkflow(id).catch(() => ({ test_cases: [], coverage_matrix: [], generation_summary: undefined, contract_gaps: [] })),
         approvalApi.forWorkflow(id).catch(() => ({ approvals: [] })),
-        evidenceApi.forWorkflow(id).catch(() => ({ evidence: [] })),
-        testApi.executions(id).catch(() => ({ executions: [] })),
-        testApi.codeQuality(id).catch(() => ({ code_quality: [] })),
-        workflowApi.sla(id).catch(() => ({ sla: null })),
-        workflowApi.almPreview(id, almProvider).catch(() => ({ preview: null })),
         testApi.codeLog(id).catch(() => ({ code_log: null })),
+        workflowApi.sla(id).catch(() => ({ sla: null })),
       ]);
       if (dRes?.workflow) setWorkflowDetail(dRes.workflow);
       if (tRes) {
@@ -167,12 +167,8 @@ export function WorkflowDetailPage() {
         if (tRes.contract_gaps) setContractGaps(tRes.contract_gaps);
       }
       setApprovalsList(aRes.approvals ?? []);
-      setEvidenceList((eRes.evidence as EvidencePackage[]) ?? []);
-      setExecutionRuns(execRes.executions ?? []);
-      setCodeQualityRuns(cqRes.code_quality ?? []);
-      if (slaRes && slaRes.sla) setSlaData(slaRes.sla);
-      if (almRes && almRes.preview) setAlmPreview(almRes.preview);
       if (clRes && clRes.code_log) setCodeLogData(clRes.code_log);
+      if (slaRes && slaRes.sla) setSlaData(slaRes.sla);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -180,16 +176,64 @@ export function WorkflowDetailPage() {
     }
   };
 
+  // Lazy-load data for secondary tabs only when opened
+  const loadTabData = async (tab: typeof activeTab) => {
+    try {
+      if (tab === "executions") {
+        const execRes = await testApi.executions(id).catch(() => ({ executions: [] }));
+        setExecutionRuns(execRes.executions ?? []);
+      } else if (tab === "quality") {
+        const cqRes = await testApi.codeQuality(id).catch(() => ({ code_quality: [] }));
+        setCodeQualityRuns(cqRes.code_quality ?? []);
+      } else if (tab === "evidence") {
+        const eRes = await evidenceApi.forWorkflow(id).catch(() => ({ evidence: [] }));
+        setEvidenceList((eRes.evidence as EvidencePackage[]) ?? []);
+      } else if (tab === "sla") {
+        const slaRes = await workflowApi.sla(id).catch(() => ({ sla: null }));
+        if (slaRes && slaRes.sla) setSlaData(slaRes.sla);
+      } else if (tab === "history") {
+        const almRes = await workflowApi.almPreview(id, almProvider).catch(() => ({ preview: null }));
+        if (almRes && almRes.preview) setAlmPreview(almRes.preview);
+      }
+    } catch {
+      // Ignore transient secondary tab errors
+    }
+  };
+
+  // Full refresh called manually or after governance decisions
+  const refreshData = async () => {
+    await Promise.all([
+      refreshCoreData(),
+      loadTabData(activeTab),
+    ]);
+  };
 
   // Initial load
   useEffect(() => {
-    refreshData();
+    refreshCoreData();
   }, [id]);
 
-  // Re-fetch data when polling status changes
+  // Load secondary tab data on tab switch
+  useEffect(() => {
+    if (activeTab !== "tests") {
+      loadTabData(activeTab);
+    }
+  }, [activeTab, id]);
+
+  // Re-fetch data ONLY when polling status or stage ACTUALLY advances
   useEffect(() => {
     if (status) {
-      refreshData();
+      const stageChanged = status.current_stage && status.current_stage !== prevStageRef.current;
+      const statusChanged = status.status && status.status !== prevStatusRef.current;
+
+      if (stageChanged || statusChanged) {
+        prevStageRef.current = status.current_stage;
+        prevStatusRef.current = status.status;
+        refreshCoreData();
+        if (activeTab !== "tests") {
+          loadTabData(activeTab);
+        }
+      }
     }
   }, [status?.current_stage, status?.status]);
 

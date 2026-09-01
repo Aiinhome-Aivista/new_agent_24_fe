@@ -31,27 +31,104 @@ export interface TestGitConnectionPayload {
   token?: string;
 }
 
-export const projectApi = {
-  list: () => unwrap<{ projects: Project[] }>(apiClient.get("/projects")),
+interface CacheEntry<T> {
+  promise?: Promise<T>;
+  data?: T;
+  timestamp: number;
+}
 
-  detail: (uuid: string) =>
-    unwrap<{
+const detailCache = new Map<string, CacheEntry<any>>();
+const listCache: CacheEntry<any> = { timestamp: 0 };
+const CACHE_TTL_MS = 3000;
+
+export function invalidateProjectCache(uuid?: string) {
+  if (uuid) {
+    detailCache.delete(uuid);
+  } else {
+    detailCache.clear();
+  }
+  listCache.timestamp = 0;
+  listCache.promise = undefined;
+  listCache.data = undefined;
+}
+
+export const projectApi = {
+  list: (forceRefresh = false): Promise<{ projects: Project[] }> => {
+    const now = Date.now();
+    if (!forceRefresh) {
+      if (listCache.promise) {
+        return listCache.promise;
+      }
+      if (listCache.data && now - listCache.timestamp < CACHE_TTL_MS) {
+        return Promise.resolve(listCache.data);
+      }
+    } else {
+      invalidateProjectCache();
+    }
+    const p = unwrap<{ projects: Project[] }>(apiClient.get("/projects"))
+      .then((data) => {
+        listCache.data = data;
+        listCache.timestamp = Date.now();
+        listCache.promise = undefined;
+        return data;
+      })
+      .catch((err) => {
+        listCache.promise = undefined;
+        throw err;
+      });
+    listCache.promise = p;
+    return p;
+  },
+
+  detail: (uuid: string, forceRefresh = false): Promise<{
+    project: Project;
+    stories: Story[];
+    knowledge?: KnowledgeDocument[];
+    contracts: { services: any[]; contracts: ApiContract[] };
+    workflows?: (WorkflowRun & { story_title?: string; story_key?: string })[];
+  }> => {
+    const now = Date.now();
+    const existing = detailCache.get(uuid);
+    if (!forceRefresh) {
+      if (existing?.promise) {
+        return existing.promise;
+      }
+      if (existing?.data && now - existing.timestamp < CACHE_TTL_MS) {
+        return Promise.resolve(existing.data);
+      }
+    } else {
+      detailCache.delete(uuid);
+    }
+    const p = unwrap<{
       project: Project;
       stories: Story[];
       knowledge?: KnowledgeDocument[];
       contracts: { services: any[]; contracts: ApiContract[] };
       workflows?: (WorkflowRun & { story_title?: string; story_key?: string })[];
-    }>(
-      apiClient.get(`/projects/${uuid}`)
-    ),
+    }>(apiClient.get(`/projects/${uuid}`))
+      .then((data) => {
+        detailCache.set(uuid, { data, timestamp: Date.now() });
+        return data;
+      })
+      .catch((err) => {
+        detailCache.delete(uuid);
+        throw err;
+      });
+    detailCache.set(uuid, { promise: p, timestamp: now });
+    return p;
+  },
 
-  create: (data: CreateProjectPayload) =>
-    unwrap<{ project_id: number; uuid: string; key_code: string; name: string }>(
+  create: (data: CreateProjectPayload) => {
+    invalidateProjectCache();
+    return unwrap<{ project_id: number; uuid: string; key_code: string; name: string }>(
       apiClient.post("/projects", data)
-    ),
+    );
+  },
 
-  delete: (uuid: string) =>
-    unwrap<{ message: string; uuid: string }>(apiClient.delete(`/projects/${uuid}`)),
+  delete: (uuid: string) => {
+    invalidateProjectCache(uuid);
+    return unwrap<{ message: string; uuid: string }>(apiClient.delete(`/projects/${uuid}`));
+  },
 
   testGitConnection: (payload: TestGitConnectionPayload) =>
     unwrap<GitConnectionResult>(
@@ -63,14 +140,19 @@ export const projectApi = {
       apiClient.post(`/projects/${projectUuid}/test-git-connection`, payload || {})
     ),
 
-  addContract: (projectUuid: string, contract: { service_name: string; method: string; path: string; request_schema?: any; response_schema?: any }) =>
-    unwrap<ApiContract>(apiClient.post(`/projects/${projectUuid}/contracts`, contract)),
+  addContract: (projectUuid: string, contract: { service_name: string; method: string; path: string; request_schema?: any; response_schema?: any }) => {
+    invalidateProjectCache(projectUuid);
+    return unwrap<ApiContract>(apiClient.post(`/projects/${projectUuid}/contracts`, contract));
+  },
 
-  uploadCollection: (projectUuid: string, formData: FormData) =>
-    unwrap<{ service: string; contracts_created: number }>(
+  uploadCollection: (projectUuid: string, formData: FormData) => {
+    invalidateProjectCache(projectUuid);
+    return unwrap<{ service: string; contracts_created: number }>(
       apiClient.post(`/projects/${projectUuid}/contracts/upload-collection`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       })
-    ),
+    );
+  },
 };
+
 
