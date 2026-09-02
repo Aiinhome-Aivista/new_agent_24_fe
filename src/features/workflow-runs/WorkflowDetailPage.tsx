@@ -122,6 +122,7 @@ export function WorkflowDetailPage() {
   // Expanded items state
   const [expandedTestUuid, setExpandedTestUuid] = useState<string | null>(null);
   const [expandedExecId, setExpandedExecId] = useState<number | null>(null);
+  const [expandedApiId, setExpandedApiId] = useState<string | null>(null);
   const [selectedEvidence, setSelectedEvidence] = useState<EvidencePackage | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -254,6 +255,9 @@ export function WorkflowDetailPage() {
 
   const latestExec = executionRuns[0];
   const latestQuality = codeQualityRuns[0];
+
+  const stateJson = workflowDetail?.state_json || {};
+  const extractedApis = stateJson.extracted_apis || [];
 
   return (
     <div className="mx-auto max-w-7xl w-full min-w-0 space-y-6">
@@ -667,7 +671,81 @@ export function WorkflowDetailPage() {
 
           {/* TAB 1: GENERATED TEST CASES & CODE */}
           {activeTab === "tests" && (
-            <Card>
+            <div className="space-y-6">
+              {/* API Endpoints & Schemas */}
+              {extractedApis.length > 0 && (
+                <Card>
+                  <div className="mb-4">
+                    <h2 className="font-display text-base font-bold text-[var(--color-text-primary)] flex items-center gap-2">
+                      <Zap size={18} className="text-cyan-400" />
+                      <span>API Endpoints & Schemas</span>
+                    </h2>
+                    <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
+                      Target endpoints and payload structures identified during requirement analysis.
+                    </p>
+                  </div>
+                  <div className="space-y-3">
+                    {extractedApis.map((api, idx) => {
+                      const isExpanded = expandedApiId === `${idx}`;
+                      return (
+                        <div key={idx} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden transition-all hover:border-[var(--color-primary)]/40">
+                          <div 
+                            onClick={() => setExpandedApiId(isExpanded ? null : `${idx}`)}
+                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 cursor-pointer hover:bg-[var(--color-surface-elevated)]/30"
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className={`rounded bg-[var(--color-surface-elevated)] px-1.5 py-0.5 font-mono text-[10px] font-bold ${
+                                api.method === "GET" ? "text-blue-400" :
+                                api.method === "POST" ? "text-emerald-400" :
+                                api.method === "PUT" ? "text-amber-400" :
+                                api.method === "DELETE" ? "text-red-400" :
+                                "text-[var(--color-text-primary)]"
+                              }`}>
+                                {api.method}
+                              </span>
+                              <span className="font-mono text-xs font-semibold text-[var(--color-text-primary)]">
+                                {api.url}
+                              </span>
+                              {api.purpose && (
+                                <span className="hidden sm:inline-block text-[11px] text-[var(--color-text-secondary)] truncate max-w-xs">
+                                  — {api.purpose}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase bg-emerald-500/10 text-emerald-400">
+                                Active
+                              </span>
+                              {api.payload_schema && (
+                                <span className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-0.5 font-mono text-[10px] uppercase text-[var(--color-text-secondary)]">
+                                  JSON Schema
+                                </span>
+                              )}
+                              <button type="button" className="text-[var(--color-text-secondary)]">
+                                {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                              </button>
+                            </div>
+                          </div>
+
+                          {isExpanded && api.payload_schema && (
+                            <div className="border-t border-[var(--color-border)] bg-[var(--color-surface-elevated)]/20 p-4 relative">
+                              <span className="text-[var(--color-text-secondary)] font-sans font-semibold block mb-1 text-xs">
+                                Payload Schema
+                              </span>
+                              <pre className="rounded-lg bg-[#0d1117] p-3 text-[11px] text-cyan-300 overflow-x-auto">
+                                {JSON.stringify(api.payload_schema, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </Card>
+              )}
+
+              {/* Generated Test Cases */}
+              <Card>
               <div 
                 className="mb-4 flex items-center justify-between cursor-pointer select-none hover:bg-white/[0.02] p-2 -m-2 rounded-lg transition-colors"
                 onClick={() => setShowTestCases(!showTestCases)}
@@ -1350,6 +1428,7 @@ export function WorkflowDetailPage() {
               </>
               )}
             </Card>
+            </div>
           )}
 
           {/* TAB 2: API EXECUTION RESULTS */}

@@ -111,7 +111,17 @@ export interface WorkflowRun {
   story_title?: string;
   story_key?: string;
   created_at?: string;
-  state_json?: any;
+  state_json?: {
+    extracted_apis?: ExtractedApi[];
+    [key: string]: any;
+  };
+}
+
+export interface ExtractedApi {
+  method: string;
+  url: string;
+  purpose?: string;
+  payload_schema?: Record<string, string>;
 }
 
 export interface CodeFileWriteInfo {
