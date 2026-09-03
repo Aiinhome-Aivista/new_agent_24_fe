@@ -123,6 +123,8 @@ export function WorkflowDetailPage() {
   const [expandedTestUuid, setExpandedTestUuid] = useState<string | null>(null);
   const [expandedExecId, setExpandedExecId] = useState<number | null>(null);
   const [expandedApiId, setExpandedApiId] = useState<string | null>(null);
+  const [selectedScenarioIdx, setSelectedScenarioIdx] = useState<Record<string, number>>({});
+  const [apiViewTab, setApiViewTab] = useState<Record<string, "scenarios" | "schema">>({});
   const [selectedEvidence, setSelectedEvidence] = useState<EvidencePackage | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -732,8 +734,8 @@ export function WorkflowDetailPage() {
                             </div>
                           </div>
 
-                          {isExpanded && (api.payload_schema || api.response_schema) && (
-                            <div className="border-t border-[var(--color-border)] bg-[var(--color-surface-elevated)]/20 p-4 space-y-3">
+                          {isExpanded && (
+                            <div className="border-t border-[var(--color-border)] bg-[var(--color-surface-elevated)]/20 p-4 space-y-4">
                               {(api.source_file || api.handler_function) && (
                                 <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-text-secondary)] pb-1">
                                   <span className="font-semibold text-zinc-400">Codebase Mapping:</span>
@@ -750,55 +752,199 @@ export function WorkflowDetailPage() {
                                 </div>
                               )}
 
-                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                {/* LEFT: Request Payload Schema */}
-                                <div className="rounded-lg border border-cyan-500/20 bg-[#0d1117] p-3.5 flex flex-col justify-between">
-                                  <div>
-                                    <div className="flex items-center justify-between mb-2">
-                                      <span className="text-cyan-400 font-mono text-xs font-bold flex items-center gap-1.5">
-                                        <span>➔</span> Request Payload Schema
-                                      </span>
-                                      <span className="rounded bg-cyan-500/10 border border-cyan-500/30 px-1.5 py-0.5 text-[10px] font-mono text-cyan-300">
-                                        REQUEST BODY
-                                      </span>
-                                    </div>
-                                    <pre className="text-[11px] text-cyan-300 overflow-x-auto whitespace-pre leading-relaxed font-mono">
-                                      {api.payload_schema
-                                        ? JSON.stringify(api.payload_schema, null, 2)
-                                        : "// No request body required (GET/DELETE request)"}
-                                    </pre>
+                              {/* Interactive Manual Test Scenario Switcher Tabs */}
+                              {api.test_scenarios && api.test_scenarios.length > 0 && (
+                                <div className="space-y-3">
+                                  <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] pb-2.5">
+                                    <span className="text-xs font-semibold text-zinc-400 mr-1 flex items-center gap-1.5">
+                                      <FlaskConical size={14} className="text-[var(--color-primary)]" />
+                                      Manual Test Scenarios:
+                                    </span>
+                                    {api.test_scenarios.map((sc, sIdx) => {
+                                      const isCurrentSc = (selectedScenarioIdx[`${idx}`] ?? 0) === sIdx && (apiViewTab[`${idx}`] ?? "scenarios") === "scenarios";
+                                      const is2xx = sc.status_code >= 200 && sc.status_code < 300;
+                                      const is4xx = sc.status_code >= 400 && sc.status_code < 500;
+                                      return (
+                                        <button
+                                          key={sIdx}
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedScenarioIdx((prev) => ({ ...prev, [`${idx}`]: sIdx }));
+                                            setApiViewTab((prev) => ({ ...prev, [`${idx}`]: "scenarios" }));
+                                          }}
+                                          className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-mono font-medium transition-all ${
+                                            isCurrentSc
+                                              ? is2xx
+                                                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 shadow-sm"
+                                                : is4xx
+                                                ? "bg-rose-500/20 text-rose-300 border border-rose-500/50 shadow-sm"
+                                                : "bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow-sm"
+                                              : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:bg-[var(--color-surface-elevated)] hover:text-white"
+                                          }`}
+                                        >
+                                          <span className={`h-2 w-2 rounded-full ${is2xx ? "bg-emerald-400" : is4xx ? "bg-rose-400" : "bg-amber-400"}`} />
+                                          <span>{sc.title || `${sc.status_code} Scenario`}</span>
+                                        </button>
+                                      );
+                                    })}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setApiViewTab((prev) => ({ ...prev, [`${idx}`]: "schema" }));
+                                      }}
+                                      className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-mono transition-all ml-auto ${
+                                        (apiViewTab[`${idx}`] ?? "scenarios") === "schema"
+                                          ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/50"
+                                          : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:bg-[var(--color-surface-elevated)]"
+                                      }`}
+                                    >
+                                      <span>📐 JSON Schema</span>
+                                    </button>
                                   </div>
-                                </div>
 
-                                {/* RIGHT: Expected Response Schema */}
-                                <div className="rounded-lg border border-emerald-500/20 bg-[#0d1117] p-3.5 flex flex-col justify-between">
-                                  <div>
-                                    <div className="flex items-center justify-between mb-2">
-                                      <span className="text-emerald-400 font-mono text-xs font-bold flex items-center gap-1.5">
-                                        <span>←</span> Expected Response Schema
-                                      </span>
-                                      <span className="rounded bg-emerald-500/10 border border-emerald-500/30 px-1.5 py-0.5 text-[10px] font-mono font-bold text-emerald-400">
-                                        {api.response_schema && typeof api.response_schema === "object" && "status_code" in api.response_schema
-                                          ? `${(api.response_schema as any).status_code} STATUS`
-                                          : (api.method === "POST" ? "201 CREATED" : "200 OK")}
-                                      </span>
+                                  {/* SCENARIO VIEW: Actual Payload & Actual Response */}
+                                  {(apiViewTab[`${idx}`] ?? "scenarios") === "scenarios" && (() => {
+                                    const currScIdx = selectedScenarioIdx[`${idx}`] ?? 0;
+                                    const currSc = api.test_scenarios[currScIdx] || api.test_scenarios[0];
+                                    const is2xx = currSc.status_code >= 200 && currSc.status_code < 300;
+                                    const payloadStr = currSc.actual_payload ? JSON.stringify(currSc.actual_payload, null, 2) : "// No request payload required (GET/DELETE)";
+                                    const responseStr = currSc.actual_response ? JSON.stringify(currSc.actual_response, null, 2) : "{}";
+
+                                    return (
+                                      <div className="space-y-3">
+                                        {currSc.description && (
+                                          <div className="rounded-lg bg-zinc-900/60 border border-zinc-800 px-3 py-2 text-xs text-zinc-300 flex items-start gap-2">
+                                            <span className="text-cyan-400 mt-0.5">ℹ️</span>
+                                            <span><strong className="text-zinc-200">Test Intent:</strong> {currSc.description}</span>
+                                          </div>
+                                        )}
+
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                          {/* LEFT: Actual Request Payload */}
+                                          <div className="rounded-lg border border-cyan-500/20 bg-[#0d1117] p-3.5 flex flex-col justify-between">
+                                            <div>
+                                              <div className="flex items-center justify-between mb-2">
+                                                <span className="text-cyan-400 font-mono text-xs font-bold flex items-center gap-1.5">
+                                                  <span>➔</span> Actual Request Payload
+                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                  <span className="rounded bg-cyan-500/10 border border-cyan-500/30 px-1.5 py-0.5 text-[10px] font-mono text-cyan-300">
+                                                    REQUEST SENT
+                                                  </span>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handleCopy(payloadStr, `req-${idx}-${currScIdx}`)}
+                                                    className="text-zinc-400 hover:text-cyan-300 transition-colors p-1"
+                                                    title="Copy Payload"
+                                                  >
+                                                    {copiedKey === `req-${idx}-${currScIdx}` ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                                                  </button>
+                                                </div>
+                                              </div>
+                                              <pre className="text-[11px] text-cyan-300 overflow-x-auto whitespace-pre leading-relaxed font-mono">
+                                                {payloadStr}
+                                              </pre>
+                                            </div>
+                                          </div>
+
+                                          {/* RIGHT: Actual Response */}
+                                          <div className={`rounded-lg border p-3.5 flex flex-col justify-between bg-[#0d1117] ${
+                                            is2xx ? "border-emerald-500/20" : "border-rose-500/20"
+                                          }`}>
+                                            <div>
+                                              <div className="flex items-center justify-between mb-2">
+                                                <span className={`font-mono text-xs font-bold flex items-center gap-1.5 ${
+                                                  is2xx ? "text-emerald-400" : "text-rose-400"
+                                                }`}>
+                                                  <span>←</span> Actual Response Received
+                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                  <span className={`rounded border px-1.5 py-0.5 text-[10px] font-mono font-bold ${
+                                                    is2xx
+                                                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                                                      : "bg-rose-500/10 border-rose-500/30 text-rose-400"
+                                                  }`}>
+                                                    {currSc.status_text || `${currSc.status_code} STATUS`}
+                                                  </span>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handleCopy(responseStr, `res-${idx}-${currScIdx}`)}
+                                                    className="text-zinc-400 hover:text-white transition-colors p-1"
+                                                    title="Copy Response"
+                                                  >
+                                                    {copiedKey === `res-${idx}-${currScIdx}` ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                                                  </button>
+                                                </div>
+                                              </div>
+                                              <pre className={`text-[11px] overflow-x-auto whitespace-pre leading-relaxed font-mono ${
+                                                is2xx ? "text-emerald-300" : "text-rose-300"
+                                              }`}>
+                                                {responseStr}
+                                              </pre>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
+                              )}
+
+                              {/* SCHEMA VIEW: Contract schemas */}
+                              {((apiViewTab[`${idx}`] ?? "scenarios") === "schema" || !api.test_scenarios || api.test_scenarios.length === 0) && (
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                  {/* LEFT: Request Payload Schema */}
+                                  <div className="rounded-lg border border-cyan-500/20 bg-[#0d1117] p-3.5 flex flex-col justify-between">
+                                    <div>
+                                      <div className="flex items-center justify-between mb-2">
+                                        <span className="text-cyan-400 font-mono text-xs font-bold flex items-center gap-1.5">
+                                          <span>➔</span> Request Payload Schema
+                                        </span>
+                                        <span className="rounded bg-cyan-500/10 border border-cyan-500/30 px-1.5 py-0.5 text-[10px] font-mono text-cyan-300">
+                                          REQUEST BODY
+                                        </span>
+                                      </div>
+                                      <pre className="text-[11px] text-cyan-300 overflow-x-auto whitespace-pre leading-relaxed font-mono">
+                                        {api.payload_schema
+                                          ? JSON.stringify(api.payload_schema, null, 2)
+                                          : "// No request body required (GET/DELETE request)"}
+                                      </pre>
                                     </div>
-                                    <pre className="text-[11px] text-emerald-300 overflow-x-auto whitespace-pre leading-relaxed font-mono">
-                                      {api.response_schema
-                                        ? JSON.stringify(
-                                            typeof api.response_schema === "object" && "body" in api.response_schema
-                                              ? (api.response_schema as any).body
-                                              : api.response_schema,
-                                            null,
-                                            2
-                                          )
-                                        : JSON.stringify({ status: "success", data: {} }, null, 2)}
-                                    </pre>
+                                  </div>
+
+                                  {/* RIGHT: Expected Response Schema */}
+                                  <div className="rounded-lg border border-emerald-500/20 bg-[#0d1117] p-3.5 flex flex-col justify-between">
+                                    <div>
+                                      <div className="flex items-center justify-between mb-2">
+                                        <span className="text-emerald-400 font-mono text-xs font-bold flex items-center gap-1.5">
+                                          <span>←</span> Expected Response Schema
+                                        </span>
+                                        <span className="rounded bg-emerald-500/10 border border-emerald-500/30 px-1.5 py-0.5 text-[10px] font-mono font-bold text-emerald-400">
+                                          {api.response_schema && typeof api.response_schema === "object" && "status_code" in api.response_schema
+                                            ? `${(api.response_schema as any).status_code} STATUS`
+                                            : (api.method === "POST" ? "201 CREATED" : "200 OK")}
+                                        </span>
+                                      </div>
+                                      <pre className="text-[11px] text-emerald-300 overflow-x-auto whitespace-pre leading-relaxed font-mono">
+                                        {api.response_schema
+                                          ? JSON.stringify(
+                                              typeof api.response_schema === "object" && "body" in api.response_schema
+                                                ? (api.response_schema as any).body
+                                                : api.response_schema,
+                                              null,
+                                              2
+                                            )
+                                          : JSON.stringify({ status: "success", data: {} }, null, 2)}
+                                      </pre>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
+                              )}
                             </div>
                           )}
+
                         </div>
                       )
                     })}

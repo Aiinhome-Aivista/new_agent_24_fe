@@ -117,6 +117,17 @@ export interface WorkflowRun {
   };
 }
 
+export interface ManualTestScenario {
+  id?: string;
+  title: string;
+  status_code: number;
+  status_text?: string;
+  scenario_type?: "POSITIVE" | "NEGATIVE" | "BOUNDARY" | "SECURITY";
+  description?: string;
+  actual_payload?: Record<string, any> | null;
+  actual_response?: Record<string, any> | null;
+}
+
 export interface ExtractedApiResponseSchema {
   status_code?: number;
   description?: string;
@@ -126,11 +137,13 @@ export interface ExtractedApiResponseSchema {
 export interface ExtractedApi {
   method: string;
   url: string;
+  path?: string;
   purpose?: string;
   source_file?: string;
   handler_function?: string;
   payload_schema?: Record<string, any>;
   response_schema?: ExtractedApiResponseSchema | Record<string, any>;
+  test_scenarios?: ManualTestScenario[];
 }
 
 export interface CodeFileWriteInfo {
