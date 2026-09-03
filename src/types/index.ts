@@ -117,11 +117,20 @@ export interface WorkflowRun {
   };
 }
 
+export interface ExtractedApiResponseSchema {
+  status_code?: number;
+  description?: string;
+  body?: Record<string, any>;
+}
+
 export interface ExtractedApi {
   method: string;
   url: string;
   purpose?: string;
-  payload_schema?: Record<string, string>;
+  source_file?: string;
+  handler_function?: string;
+  payload_schema?: Record<string, any>;
+  response_schema?: ExtractedApiResponseSchema | Record<string, any>;
 }
 
 export interface CodeFileWriteInfo {

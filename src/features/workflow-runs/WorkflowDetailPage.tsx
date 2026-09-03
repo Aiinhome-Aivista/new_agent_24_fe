@@ -693,21 +693,21 @@ export function WorkflowDetailPage() {
                             onClick={() => setExpandedApiId(isExpanded ? null : `${idx}`)}
                             className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 cursor-pointer hover:bg-[var(--color-surface-elevated)]/30"
                           >
-                            <div className="flex items-center gap-3">
-                              <span className={`rounded bg-[var(--color-surface-elevated)] px-1.5 py-0.5 font-mono text-[10px] font-bold ${
-                                api.method === "GET" ? "text-blue-400" :
-                                api.method === "POST" ? "text-emerald-400" :
-                                api.method === "PUT" ? "text-amber-400" :
-                                api.method === "DELETE" ? "text-red-400" :
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <span className={`rounded bg-[var(--color-surface-elevated)] px-2 py-0.5 font-mono text-[11px] font-bold ${
+                                api.method === "GET" ? "text-blue-400 border border-blue-500/20" :
+                                api.method === "POST" ? "text-emerald-400 border border-emerald-500/20" :
+                                api.method === "PUT" ? "text-amber-400 border border-amber-500/20" :
+                                api.method === "DELETE" ? "text-red-400 border border-red-500/20" :
                                 "text-[var(--color-text-primary)]"
                               }`}>
                                 {api.method}
                               </span>
-                              <span className="font-mono text-xs font-semibold text-[var(--color-text-primary)]">
+                              <span className="font-mono text-xs font-semibold text-cyan-300 bg-[#0d1117]/80 px-2 py-0.5 rounded border border-cyan-500/30 select-all">
                                 {api.url}
                               </span>
                               {api.purpose && (
-                                <span className="hidden sm:inline-block text-[11px] text-[var(--color-text-secondary)] truncate max-w-xs">
+                                <span className="hidden sm:inline-block text-[11px] text-[var(--color-text-secondary)] truncate max-w-sm">
                                   — {api.purpose}
                                 </span>
                               )}
@@ -717,30 +717,93 @@ export function WorkflowDetailPage() {
                                 Active
                               </span>
                               {api.payload_schema && (
-                                <span className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-0.5 font-mono text-[10px] uppercase text-[var(--color-text-secondary)]">
-                                  JSON Schema
+                                <span className="rounded border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 font-mono text-[10px] uppercase text-cyan-300">
+                                  Payload
                                 </span>
                               )}
-                              <button type="button" className="text-[var(--color-text-secondary)]">
+                              {api.response_schema && (
+                                <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] uppercase text-emerald-300">
+                                  Response
+                                </span>
+                              )}
+                              <button type="button" className="text-[var(--color-text-secondary)] hover:text-white">
                                 {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                               </button>
                             </div>
                           </div>
 
-                          {isExpanded && api.payload_schema && (
-                            <div className="border-t border-[var(--color-border)] bg-[var(--color-surface-elevated)]/20 p-4 relative">
-                              <span className="text-[var(--color-text-secondary)] font-sans font-semibold block mb-1 text-xs">
-                                Payload Schema
-                              </span>
-                              <pre className="rounded-lg bg-[#0d1117] p-3 text-[11px] text-cyan-300 overflow-x-auto">
-                                {JSON.stringify(api.payload_schema, null, 2)}
-                              </pre>
+                          {isExpanded && (api.payload_schema || api.response_schema) && (
+                            <div className="border-t border-[var(--color-border)] bg-[var(--color-surface-elevated)]/20 p-4 space-y-3">
+                              {(api.source_file || api.handler_function) && (
+                                <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-text-secondary)] pb-1">
+                                  <span className="font-semibold text-zinc-400">Codebase Mapping:</span>
+                                  {api.source_file && (
+                                    <span className="rounded bg-zinc-800/80 border border-zinc-700/60 px-2 py-0.5 font-mono text-[11px] text-cyan-400">
+                                      {api.source_file}
+                                    </span>
+                                  )}
+                                  {api.handler_function && (
+                                    <span className="rounded bg-zinc-800/80 border border-zinc-700/60 px-2 py-0.5 font-mono text-[11px] text-purple-400">
+                                      {api.handler_function}()
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                {/* LEFT: Request Payload Schema */}
+                                <div className="rounded-lg border border-cyan-500/20 bg-[#0d1117] p-3.5 flex flex-col justify-between">
+                                  <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-cyan-400 font-mono text-xs font-bold flex items-center gap-1.5">
+                                        <span>➔</span> Request Payload Schema
+                                      </span>
+                                      <span className="rounded bg-cyan-500/10 border border-cyan-500/30 px-1.5 py-0.5 text-[10px] font-mono text-cyan-300">
+                                        REQUEST BODY
+                                      </span>
+                                    </div>
+                                    <pre className="text-[11px] text-cyan-300 overflow-x-auto whitespace-pre leading-relaxed font-mono">
+                                      {api.payload_schema
+                                        ? JSON.stringify(api.payload_schema, null, 2)
+                                        : "// No request body required (GET/DELETE request)"}
+                                    </pre>
+                                  </div>
+                                </div>
+
+                                {/* RIGHT: Expected Response Schema */}
+                                <div className="rounded-lg border border-emerald-500/20 bg-[#0d1117] p-3.5 flex flex-col justify-between">
+                                  <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-emerald-400 font-mono text-xs font-bold flex items-center gap-1.5">
+                                        <span>←</span> Expected Response Schema
+                                      </span>
+                                      <span className="rounded bg-emerald-500/10 border border-emerald-500/30 px-1.5 py-0.5 text-[10px] font-mono font-bold text-emerald-400">
+                                        {api.response_schema && typeof api.response_schema === "object" && "status_code" in api.response_schema
+                                          ? `${(api.response_schema as any).status_code} STATUS`
+                                          : (api.method === "POST" ? "201 CREATED" : "200 OK")}
+                                      </span>
+                                    </div>
+                                    <pre className="text-[11px] text-emerald-300 overflow-x-auto whitespace-pre leading-relaxed font-mono">
+                                      {api.response_schema
+                                        ? JSON.stringify(
+                                            typeof api.response_schema === "object" && "body" in api.response_schema
+                                              ? (api.response_schema as any).body
+                                              : api.response_schema,
+                                            null,
+                                            2
+                                          )
+                                        : JSON.stringify({ status: "success", data: {} }, null, 2)}
+                                    </pre>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           )}
                         </div>
                       )
                     })}
                   </div>
+
                 </Card>
               )}
 
