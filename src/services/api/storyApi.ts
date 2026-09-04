@@ -1,4 +1,5 @@
 import { apiClient, unwrap } from "./apiClient";
+import { invalidateProjectCache } from "./projectApi";
 import type { Story, AcceptanceCriterion } from "@/types";
 
 export interface CreateStoryPayload {
@@ -19,14 +20,21 @@ export const storyApi = {
       apiClient.get(`/stories/${uuid}`)
     ),
 
-  create: (data: CreateStoryPayload) =>
-    unwrap<{ story_id: number; uuid: string; external_key: string; title: string; acceptance_criteria: AcceptanceCriterion[] }>(
+  create: (data: CreateStoryPayload) => {
+    invalidateProjectCache(data.project_uuid);
+    return unwrap<{ story_id: number; uuid: string; external_key: string; title: string; acceptance_criteria: AcceptanceCriterion[] }>(
       apiClient.post("/stories", data)
-    ),
+    );
+  },
 
-  addAc: (storyUuid: string, acData: { ac_key?: string; text: string }) =>
-    unwrap<AcceptanceCriterion>(apiClient.post(`/stories/${storyUuid}/acceptance-criteria`, acData)),
+  addAc: (storyUuid: string, acData: { ac_key?: string; text: string }) => {
+    invalidateProjectCache();
+    return unwrap<AcceptanceCriterion>(apiClient.post(`/stories/${storyUuid}/acceptance-criteria`, acData));
+  },
 
-  delete: (uuid: string) =>
-    unwrap<{ message: string; uuid: string }>(apiClient.delete(`/stories/${uuid}`)),
+  delete: (uuid: string) => {
+    invalidateProjectCache();
+    return unwrap<{ message: string; uuid: string }>(apiClient.delete(`/stories/${uuid}`));
+  },
 };
+
