@@ -127,6 +127,9 @@ export function WorkflowDetailPage() {
   const [apiViewTab, setApiViewTab] = useState<Record<string, "scenarios" | "schema">>({});
   const [selectedEvidence, setSelectedEvidence] = useState<EvidencePackage | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [runningLiveTest, setRunningLiveTest] = useState<Record<string, boolean>>({});
+  const [liveTestResults, setLiveTestResults] = useState<Record<string, any>>({});
+  const [liveEnvUrl, setLiveEnvUrl] = useState<string>("http://localhost:8080");
 
   // Decision state per approval
   const [comments, setComments] = useState<Record<string, string>>({});
@@ -201,6 +204,22 @@ export function WorkflowDetailPage() {
     setCopiedKey(key);
     notify("success", "Copied to clipboard!");
     setTimeout(() => setCopiedKey(null), 2000);
+  };
+
+  const handleLiveTest = async (scenario: any, idx: number, currScIdx: number) => {
+    const key = `${idx}-${currScIdx}`;
+    setRunningLiveTest(prev => ({ ...prev, [key]: true }));
+    try {
+      const res = await testApi.runLiveTest(id, scenario, liveEnvUrl);
+      if (res && res.result) {
+         setLiveTestResults(prev => ({ ...prev, [key]: res.result }));
+         notify(res.result.passed ? "success" : "warning", `Live test ${res.result.passed ? 'passed' : 'failed'} (${res.result.status_code}) in ${res.result.duration_ms}ms`);
+      }
+    } catch (e) {
+      notify("error", (e as Error).message);
+    } finally {
+      setRunningLiveTest(prev => ({ ...prev, [key]: false }));
+    }
   };
 
   // Determine active project uuid from search params or fetched workflow
@@ -886,6 +905,47 @@ export function WorkflowDetailPage() {
                                             </div>
                                           </div>
                                         </div>
+
+                                        <div className="flex justify-end items-center gap-3 pt-2">
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-mono text-zinc-400">Target URL:</span>
+                                            <input 
+                                              type="text" 
+                                              value={liveEnvUrl} 
+                                              onChange={e => setLiveEnvUrl(e.target.value)}
+                                              className="bg-[#0d1117] border border-zinc-800 text-xs font-mono text-cyan-300 rounded px-2 py-1 focus:outline-none focus:border-cyan-500 w-48"
+                                            />
+                                          </div>
+                                          <Button
+                                            variant="primary"
+                                            loading={runningLiveTest[`${idx}-${currScIdx}`]}
+                                            onClick={() => handleLiveTest(currSc, idx, currScIdx)}
+                                            className="text-xs font-semibold px-4 py-1.5 flex items-center gap-2"
+                                          >
+                                            <Zap size={14} /> Run Live Test on Git Code
+                                          </Button>
+                                        </div>
+                                        
+                                        {liveTestResults[`${idx}-${currScIdx}`] && (
+                                           <div className={`mt-2 p-3 rounded-lg border ${liveTestResults[`${idx}-${currScIdx}`].passed ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-rose-500/30 bg-rose-500/10'}`}>
+                                              <div className="flex items-center justify-between mb-2">
+                                                 <span className={`font-mono text-xs font-bold ${liveTestResults[`${idx}-${currScIdx}`].passed ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                    Live Execution Result
+                                                 </span>
+                                                 <div className="flex gap-2 text-[10px] font-mono">
+                                                   <span className="bg-[#0d1117] px-1.5 py-0.5 rounded text-zinc-300">
+                                                      {liveTestResults[`${idx}-${currScIdx}`].status_code} STATUS
+                                                   </span>
+                                                   <span className="bg-[#0d1117] px-1.5 py-0.5 rounded text-zinc-300">
+                                                      {liveTestResults[`${idx}-${currScIdx}`].duration_ms}ms
+                                                   </span>
+                                                 </div>
+                                              </div>
+                                              <pre className={`text-[11px] overflow-x-auto whitespace-pre font-mono ${liveTestResults[`${idx}-${currScIdx}`].passed ? 'text-emerald-300' : 'text-rose-300'}`}>
+                                                 {liveTestResults[`${idx}-${currScIdx}`].response_body}
+                                              </pre>
+                                           </div>
+                                        )}
                                       </div>
                                     );
                                   })()}
