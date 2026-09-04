@@ -14,6 +14,7 @@ import {
   FileCheck2,
   Layers,
   ArrowLeft,
+  Zap,
 } from "lucide-react";
 
 // 1. General Navigation (Global Root View)
@@ -158,6 +159,11 @@ export function Sidebar() {
             to: `/app/workflows?project=${activeProjectUuid}`,
             label: "Workflow Runs",
             icon: GitBranch,
+          },
+          {
+            to: `/app/endpoints?project=${activeProjectUuid}`,
+            label: "API Endpoints & Schemas",
+            icon: Zap,
           },
           {
             to: `/app/new-workflow?project=${activeProjectUuid}`,

@@ -11,6 +11,7 @@ import { StoriesPage } from "@/features/stories/StoriesPage";
 import { WorkflowsPage } from "@/features/workflow-runs/WorkflowsPage";
 import { WorkflowDetailPage } from "@/features/workflow-runs/WorkflowDetailPage";
 import { NewWorkflowPage } from "@/features/test-generation/NewWorkflowPage";
+import { ApiEndpointsPage } from "@/features/projects/ApiEndpointsPage";
 import { AgentMonitorPage } from "@/features/agent-monitor/AgentMonitorPage";
 import { ApprovalsPage } from "@/features/approvals/ApprovalsPage";
 import { AuditPage } from "@/features/audit/AuditPage";
@@ -32,6 +33,7 @@ export const router = createBrowserRouter([
       { path: "stories", element: <StoriesPage /> },
       { path: "workflows", element: <WorkflowsPage /> },
       { path: "workflows/:id", element: <WorkflowDetailPage /> },
+      { path: "endpoints", element: <ApiEndpointsPage /> },
       { path: "new-workflow", element: <NewWorkflowPage /> },
       { path: "agents", element: <AgentMonitorPage /> },
       { path: "approvals", element: <ApprovalsPage /> },
