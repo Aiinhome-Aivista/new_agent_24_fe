@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Zap, Construction, ChevronUp, ChevronDown, Check, Copy, FlaskConical, Play } from "lucide-react";
+import { Zap, Construction, ChevronUp, ChevronDown, Check, Copy, FlaskConical, Play, Sparkles } from "lucide-react";
 import { workflowApi } from "@/services/api/workflowApi";
 import { testApi } from "@/services/api/testApi";
 import { useToast } from "@/contexts/ToastContext";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Loading, ErrorState } from "@/components/ui/Loading";
+import { PostmanClient, type PostmanRequestInitial } from "./PostmanClient";
 import type { WorkflowRun } from "@/types";
 
 export function ApiEndpointsPage() {
@@ -29,8 +30,7 @@ export function ApiEndpointsPage() {
   // Postman Testing States
   const postmanRef = useRef<HTMLDivElement>(null);
   const [selectedApiIdx, setSelectedApiIdx] = useState<number | null>(null);
-  const [postmanActiveTab, setPostmanActiveTab] = useState<"params" | "headers" | "body">("body");
-  const [manualInputs, setManualInputs] = useState<Record<string, { method: string; url: string; payload: string }>>({});
+  const [postmanInitialReq, setPostmanInitialReq] = useState<PostmanRequestInitial | null>(null);
   
   // Live Testing States
   const [liveEnvUrl, setLiveEnvUrl] = useState("http://localhost:8080");
@@ -106,14 +106,18 @@ export function ApiEndpointsPage() {
 
   const openInPostman = (idx: number, api: any) => {
     setSelectedApiIdx(idx);
-    if (!manualInputs[`${idx}`]) {
-      const defaultPayload = api.payload_schema ? JSON.stringify(api.payload_schema, null, 2) : "";
-      setManualInputs(prev => ({
-        ...prev,
-        [`${idx}`]: { method: api.method || "GET", url: api.url || "", payload: defaultPayload }
-      }));
+    let payloadObj = api.payload_schema || null;
+    if (api.test_scenarios && api.test_scenarios.length > 0 && api.test_scenarios[0].actual_payload) {
+      payloadObj = api.test_scenarios[0].actual_payload;
     }
-    // Scroll to postman section
+    
+    setPostmanInitialReq({
+      method: api.method || "GET",
+      url: api.url || "",
+      payload: payloadObj,
+      title: api.purpose || api.title || `Test ${api.method} ${api.url}`
+    });
+
     setTimeout(() => {
       postmanRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
@@ -203,7 +207,7 @@ export function ApiEndpointsPage() {
                           className={`text-xs px-2.5 py-1 h-auto flex items-center gap-1.5 ${selectedApiIdx === idx ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/30 hover:text-purple-200' : 'text-[var(--color-text-secondary)] hover:text-white border border-transparent'}`}
                         >
                           <Play size={12} className={selectedApiIdx === idx ? 'text-purple-400' : ''} />
-                          <span>Test in Postman UI</span>
+                          <span>Test in Manual Tester</span>
                         </Button>
                         <div className="w-[1px] h-4 bg-[var(--color-border)]"></div>
                         <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase bg-emerald-500/10 text-emerald-400">
@@ -477,165 +481,36 @@ export function ApiEndpointsPage() {
             </div>
           </Card>
 
-          {/* POSTMAN UI SECTION (At the bottom, separated) */}
-          <div ref={postmanRef} className="pt-8">
-            <h2 className="font-display text-xl font-bold text-[var(--color-text-primary)] flex items-center gap-2 mb-4">
-              <span className="text-purple-400">🚀</span>
-              <span>Postman UI</span>
-            </h2>
+          {/* MANUAL TESTER SECTION (At the bottom, separated) */}
+          <div ref={postmanRef} className="pt-8 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-display text-xl font-bold text-[var(--color-text-primary)] flex items-center gap-2">
+                <span className="text-purple-400">🚀</span>
+                <span>Manual Tester</span>
+              </h2>
+              {selectedApiIdx !== null && (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setSelectedApiIdx(null);
+                    setPostmanInitialReq(null);
+                  }}
+                  className="text-xs text-zinc-400 hover:text-white"
+                >
+                  Clear Selection
+                </Button>
+              )}
+            </div>
             
-            {!extractedApis || extractedApis.length === 0 ? (
-              <div className="p-8 text-center border border-dashed border-[var(--color-border)] rounded-xl text-zinc-500">
-                No APIs available to test.
-              </div>
-            ) : selectedApiIdx === null ? (
-              <div className="p-12 text-center border border-dashed border-[var(--color-border)] rounded-xl bg-[var(--color-surface)] flex flex-col items-center gap-3">
-                <Play size={32} className="text-zinc-600 mb-2" />
-                <h3 className="text-zinc-300 font-medium text-lg">Select an API to test</h3>
-                <p className="text-zinc-500 text-sm max-w-md">
-                  Click the "Test in Postman UI" button on any API card above to load it into the manual testing workspace.
-                </p>
-              </div>
-            ) : (() => {
-              const api = extractedApis[selectedApiIdx];
-              const mInput = manualInputs[`${selectedApiIdx}`] || { method: api.method || "GET", url: api.url || "", payload: "" };
-              
-              const handleManualChange = (field: string, value: string) => {
-                setManualInputs(prev => ({
-                  ...prev,
-                  [`${selectedApiIdx}`]: { ...mInput, [field]: value }
-                }));
-              };
-
-              const runManualTest = async () => {
-                 let parsedPayload = {};
-                 if (mInput.payload.trim()) {
-                   try {
-                     parsedPayload = JSON.parse(mInput.payload);
-                   } catch (e: any) {
-                     notify("error", `Invalid JSON payload: ${e.message}`);
-                     return;
-                   }
-                 }
-                 const syntheticScenario = {
-                   method: mInput.method,
-                   url: mInput.url,
-                   payload: parsedPayload,
-                   title: "Manual Postman Request"
-                 };
-                 handleLiveTest(syntheticScenario, selectedApiIdx, "manual");
-              };
-
-              return (
-                <div className="flex flex-col border border-[var(--color-border)] rounded-xl bg-[#0a0a0a] overflow-hidden shadow-2xl">
-                  {/* Top Header / URL Bar */}
-                  <div className="p-4 border-b border-[var(--color-border)] flex flex-col sm:flex-row gap-3 bg-[var(--color-surface)]">
-                    <div className="flex gap-2 flex-1">
-                      <select 
-                        value={mInput.method} 
-                        onChange={e => handleManualChange("method", e.target.value)}
-                        className="bg-[#0a0a0a] border border-zinc-700 text-xs font-bold font-mono rounded px-3 py-2 outline-none focus:border-purple-500 w-24"
-                      >
-                        <option>GET</option>
-                        <option>POST</option>
-                        <option>PUT</option>
-                        <option>DELETE</option>
-                        <option>PATCH</option>
-                      </select>
-                      <div className="flex-1 flex items-center bg-[#0a0a0a] border border-zinc-700 rounded overflow-hidden focus-within:border-purple-500">
-                        <span className="text-zinc-500 text-xs px-3 font-mono border-r border-zinc-800 hidden sm:block bg-zinc-900/30 py-2.5">
-                          {liveEnvUrl}
-                        </span>
-                        <input 
-                          type="text" 
-                          value={mInput.url} 
-                          onChange={e => handleManualChange("url", e.target.value)}
-                          className="flex-1 bg-transparent px-3 py-2 text-xs font-mono text-cyan-300 outline-none w-full"
-                          placeholder="/api/example"
-                        />
-                      </div>
-                    </div>
-                    
-                    <Button
-                      variant="primary"
-                      loading={runningLiveTest[`${selectedApiIdx}-manual`]}
-                      onClick={runManualTest}
-                      className="text-sm font-semibold px-6 py-2 flex items-center justify-center gap-2 !bg-purple-600 hover:!bg-purple-500 text-white border border-purple-500/50 shadow-lg shadow-purple-500/20 w-full sm:w-auto"
-                    >
-                      <Zap size={16} /> Send
-                    </Button>
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-2 min-h-[400px]">
-                    {/* Left side: Request Configuration */}
-                    <div className="flex flex-col border-r border-[var(--color-border)]">
-                      <div className="flex px-4 pt-2 border-b border-[var(--color-border)] gap-6 text-xs font-medium text-zinc-400 bg-[var(--color-surface)]/50">
-                        {["Params", "Headers", "Body"].map(tab => (
-                          <button 
-                            key={tab}
-                            onClick={() => setPostmanActiveTab(tab.toLowerCase() as any)}
-                            className={`pb-2 border-b-2 transition-colors ${postmanActiveTab === tab.toLowerCase() ? 'border-purple-500 text-purple-400' : 'border-transparent hover:text-zinc-200'}`}
-                          >
-                            {tab}
-                          </button>
-                        ))}
-                      </div>
-                      
-                      <div className="flex-1 p-0 bg-[#0d1117] flex flex-col">
-                        {postmanActiveTab === 'body' && (
-                          <textarea 
-                            value={mInput.payload}
-                            onChange={e => handleManualChange("payload", e.target.value)}
-                            className="flex-1 w-full bg-transparent text-[13px] text-zinc-300 p-4 font-mono focus:outline-none resize-none"
-                            placeholder="{\n  // Enter JSON payload here\n}"
-                            spellCheck={false}
-                          />
-                        )}
-                        {(postmanActiveTab === 'params' || postmanActiveTab === 'headers') && (
-                          <div className="flex-1 flex items-center justify-center text-zinc-600 text-xs italic p-8 text-center">
-                            This feature is in development. For now, add query parameters directly to the URL string above.
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Right side: Response Viewer */}
-                    <div className="flex flex-col border-t lg:border-t-0 border-[var(--color-border)]">
-                      <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]/50">
-                        <span className="text-xs font-semibold text-zinc-300">Response</span>
-                        {liveTestResults[`${selectedApiIdx}-manual`] && (
-                          <div className="flex gap-3 text-[11px] font-mono">
-                            <span className={liveTestResults[`${selectedApiIdx}-manual`].passed ? 'text-emerald-400' : 'text-rose-400'}>
-                              Status: {liveTestResults[`${selectedApiIdx}-manual`].status_code}
-                            </span>
-                            <span className="text-cyan-400">
-                              Time: {liveTestResults[`${selectedApiIdx}-manual`].duration_ms} ms
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="flex-1 p-0 bg-[#0d1117] flex flex-col">
-                        {liveTestResults[`${selectedApiIdx}-manual`] ? (
-                          <pre className={`flex-1 overflow-auto p-4 text-[12px] font-mono whitespace-pre-wrap ${liveTestResults[`${selectedApiIdx}-manual`].passed ? 'text-emerald-300' : 'text-rose-300'}`}>
-                            {liveTestResults[`${selectedApiIdx}-manual`].response_body || "// Empty response"}
-                          </pre>
-                        ) : (
-                          <div className="flex-1 flex items-center justify-center text-zinc-600 text-xs flex-col gap-2 p-8 text-center">
-                            <div className="border border-zinc-800 rounded px-2 py-1 bg-zinc-900/50 text-zinc-500 font-mono">
-                              Hit Send to fetch a response
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
+            <PostmanClient
+              workflowId={workflowId}
+              initialRequest={postmanInitialReq}
+              defaultBaseUrl={liveEnvUrl}
+            />
           </div>
         </>
       )}
     </div>
   );
 }
+

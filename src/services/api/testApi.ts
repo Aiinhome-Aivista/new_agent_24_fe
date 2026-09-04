@@ -19,6 +19,8 @@ export const testApi = {
     unwrap<{ code_log: CodeLog | null }>(apiClient.get(`/workflows/${id}/code-log`)),
   runLiveTest: (id: string, scenario: any, environment: string) =>
     unwrap<{ result: any }>(apiClient.post(`/workflows/${id}/run-live-test`, { scenario, environment })),
+  liveProxy: (scenario: any, environment: string) =>
+    unwrap<{ result: any }>(apiClient.post(`/live-proxy`, { scenario, environment })),
 };
 
 
