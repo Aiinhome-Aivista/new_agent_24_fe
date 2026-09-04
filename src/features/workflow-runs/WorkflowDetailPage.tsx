@@ -147,22 +147,28 @@ export function WorkflowDetailPage() {
 
   const status = usePolling(
     () => workflowApi.status(id),
-    2500,
+    4000,
     !isPausedOrDone && !loadingInitial
   );
 
-  // Fetch all workflow data
-  const refreshData = async () => {
+  // Fetch workflow data smartly without flooding server with concurrent requests
+  const refreshData = async (forceAll: boolean | unknown = false) => {
     try {
+      const isFinishedOrPaused = isPausedOrDone || forceAll === true;
+      const shouldFetchSla = isFinishedOrPaused || activeTab === "sla";
+      const shouldFetchAlm = isFinishedOrPaused || activeTab === "evidence";
+      const shouldFetchExec = isFinishedOrPaused || activeTab === "executions";
+      const shouldFetchQuality = isFinishedOrPaused || activeTab === "quality";
+
       const [dRes, tRes, aRes, eRes, execRes, cqRes, slaRes, almRes, clRes] = await Promise.all([
         workflowApi.detail(id).catch(() => ({ workflow: null })),
         testApi.forWorkflow(id).catch(() => ({ test_cases: [], coverage_matrix: [], generation_summary: undefined, contract_gaps: [] })),
         approvalApi.forWorkflow(id).catch(() => ({ approvals: [] })),
         evidenceApi.forWorkflow(id).catch(() => ({ evidence: [] })),
-        testApi.executions(id).catch(() => ({ executions: [] })),
-        testApi.codeQuality(id).catch(() => ({ code_quality: [] })),
-        workflowApi.sla(id).catch(() => ({ sla: null })),
-        workflowApi.almPreview(id, almProvider).catch(() => ({ preview: null })),
+        shouldFetchExec ? testApi.executions(id).catch(() => ({ executions: [] })) : Promise.resolve({ executions: [] }),
+        shouldFetchQuality ? testApi.codeQuality(id).catch(() => ({ code_quality: [] })) : Promise.resolve({ code_quality: [] }),
+        shouldFetchSla ? workflowApi.sla(id).catch(() => ({ sla: null })) : Promise.resolve({ sla: null }),
+        shouldFetchAlm ? workflowApi.almPreview(id, almProvider).catch(() => ({ preview: null })) : Promise.resolve({ preview: null }),
         testApi.codeLog(id).catch(() => ({ code_log: null })),
       ]);
       if (dRes?.workflow) setWorkflowDetail(dRes.workflow);
@@ -174,8 +180,8 @@ export function WorkflowDetailPage() {
       }
       setApprovalsList(aRes.approvals ?? []);
       setEvidenceList((eRes.evidence as EvidencePackage[]) ?? []);
-      setExecutionRuns(execRes.executions ?? []);
-      setCodeQualityRuns(cqRes.code_quality ?? []);
+      if (shouldFetchExec && execRes.executions) setExecutionRuns(execRes.executions ?? []);
+      if (shouldFetchQuality && cqRes.code_quality) setCodeQualityRuns(cqRes.code_quality ?? []);
       if (slaRes && slaRes.sla) setSlaData(slaRes.sla);
       if (almRes && almRes.preview) setAlmPreview(almRes.preview);
       if (clRes && clRes.code_log) setCodeLogData(clRes.code_log);
@@ -186,11 +192,23 @@ export function WorkflowDetailPage() {
     }
   };
 
-
   // Initial load
   useEffect(() => {
-    refreshData();
+    refreshData(true);
   }, [id]);
+
+  // Tab switch loads relevant data if needed
+  useEffect(() => {
+    if (activeTab === "sla" && !slaData) {
+      workflowApi.sla(id).then((res) => { if (res?.sla) setSlaData(res.sla); }).catch(() => {});
+    } else if (activeTab === "executions" && executionRuns.length === 0) {
+      testApi.executions(id).then((res) => { if (res?.executions) setExecutionRuns(res.executions); }).catch(() => {});
+    } else if (activeTab === "quality" && codeQualityRuns.length === 0) {
+      testApi.codeQuality(id).then((res) => { if (res?.code_quality) setCodeQualityRuns(res.code_quality); }).catch(() => {});
+    } else if (activeTab === "evidence" && !almPreview) {
+      workflowApi.almPreview(id, almProvider).then((res) => { if (res?.preview) setAlmPreview(res.preview); }).catch(() => {});
+    }
+  }, [activeTab]);
 
   // Re-fetch data when polling status changes
   useEffect(() => {
@@ -294,7 +312,7 @@ export function WorkflowDetailPage() {
 
         <Button
           variant="secondary"
-          onClick={refreshData}
+          onClick={() => refreshData(true)}
           className="flex items-center gap-1 text-xs py-1.5 px-3"
         >
           <RefreshCw size={13} /> Refresh
