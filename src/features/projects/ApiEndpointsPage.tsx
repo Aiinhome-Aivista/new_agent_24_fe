@@ -37,6 +37,91 @@ export function ApiEndpointsPage() {
   const [runningLiveTest, setRunningLiveTest] = useState<Record<string, boolean>>({});
   const [liveTestResults, setLiveTestResults] = useState<Record<string, any>>({});
 
+  // Bulk Runner States
+  const [isBulkRunning, setIsBulkRunning] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
+  const [bulkResults, setBulkResults] = useState<{
+    passed: number;
+    failed: number;
+    total: number;
+    details: any[];
+  } | null>(null);
+
+  const runAllTests = async () => {
+    if (!workflowId || extractedApis.length === 0) return;
+    
+    // Count total scenarios
+    let totalScenarios = 0;
+    const allScenarios: { apiIdx: number, scenarioIdx: number, scenario: any, api: any }[] = [];
+    
+    extractedApis.forEach((api, aIdx) => {
+      if (api.test_scenarios && api.test_scenarios.length > 0) {
+        api.test_scenarios.forEach((sc: any, sIdx: number) => {
+          allScenarios.push({ apiIdx: aIdx, scenarioIdx: sIdx, scenario: sc, api });
+          totalScenarios++;
+        });
+      }
+    });
+
+    if (totalScenarios === 0) {
+      notify("info", "No automated scenarios found to run.");
+      return;
+    }
+
+    setIsBulkRunning(true);
+    setBulkResults(null);
+    setBulkProgress({ current: 0, total: totalScenarios });
+
+    let passedCount = 0;
+    let failedCount = 0;
+    const details: any[] = [];
+
+    for (let i = 0; i < allScenarios.length; i++) {
+      const item = allScenarios[i];
+      setBulkProgress({ current: i + 1, total: totalScenarios });
+      
+      try {
+        const res = await testApi.runLiveTest(workflowId, item.scenario, liveEnvUrl);
+        if (res && res.result) {
+           const passed = res.result.passed;
+           if (passed) passedCount++; else failedCount++;
+           
+           details.push({
+             api: item.api,
+             scenario: item.scenario,
+             result: res.result
+           });
+           
+           // Update individual live test results for the UI
+           const key = `${item.apiIdx}-${item.scenarioIdx}`;
+           setLiveTestResults(prev => ({ ...prev, [key]: res.result }));
+        } else {
+           failedCount++;
+           details.push({
+             api: item.api,
+             scenario: item.scenario,
+             error: "No result returned"
+           });
+        }
+      } catch (e: any) {
+        failedCount++;
+        details.push({
+           api: item.api,
+           scenario: item.scenario,
+           error: e.message
+        });
+      }
+    }
+
+    setBulkResults({
+      passed: passedCount,
+      failed: failedCount,
+      total: totalScenarios,
+      details
+    });
+    setIsBulkRunning(false);
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       if (!selectedProject) {
@@ -62,7 +147,20 @@ export function ApiEndpointsPage() {
           
           if (fullWf && fullWf.state_json && fullWf.state_json.extracted_apis && fullWf.state_json.extracted_apis.length > 0) {
             setWorkflowId(fullWf.workflow_id);
-            setExtractedApis(fullWf.state_json.extracted_apis);
+            const apis = fullWf.state_json.extracted_apis;
+            setExtractedApis(apis);
+            
+            // Auto-detect base URL and port from the first API if available
+            for (const api of apis) {
+              if (api.url && api.url.startsWith("http")) {
+                try {
+                  const urlObj = new URL(api.url);
+                  setLiveEnvUrl(urlObj.origin); // e.g. http://localhost:3000
+                  break;
+                } catch(e) {}
+              }
+            }
+            
             foundApis = true;
             break;
           }
@@ -154,7 +252,72 @@ export function ApiEndpointsPage() {
             Target endpoints and payload structures identified for this project.
           </p>
         </div>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="primary"
+            onClick={runAllTests}
+            loading={isBulkRunning}
+            disabled={extractedApis.length === 0}
+            className="text-sm font-semibold px-4 py-2 flex items-center justify-center gap-2 !bg-emerald-600 hover:!bg-emerald-500 text-white border border-emerald-500/50 shadow-lg shadow-emerald-500/20"
+          >
+            <Sparkles size={16} /> {isBulkRunning ? `Running (${bulkProgress.current}/${bulkProgress.total})` : "Run All Automated Tests"}
+          </Button>
+        </div>
       </div>
+
+      {bulkResults && (
+        <Card className="border-emerald-500/30 bg-emerald-500/5 overflow-hidden">
+           <div className="flex flex-col space-y-4">
+             <div className="flex items-center justify-between border-b border-emerald-500/20 pb-4">
+               <div>
+                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                   <Sparkles className="text-emerald-400" size={20} />
+                   Automated Test Report
+                 </h2>
+                 <p className="text-xs text-zinc-400 mt-1">
+                   Executed {bulkResults.total} scenarios against {liveEnvUrl}
+                 </p>
+               </div>
+               <div className="flex gap-4">
+                 <div className="flex flex-col items-center bg-[#0a0a0a] border border-zinc-800 rounded-lg px-4 py-2">
+                   <span className="text-2xl font-bold text-white">{bulkResults.total}</span>
+                   <span className="text-[10px] uppercase font-bold text-zinc-500">Total</span>
+                 </div>
+                 <div className="flex flex-col items-center bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-4 py-2">
+                   <span className="text-2xl font-bold text-emerald-400">{bulkResults.passed}</span>
+                   <span className="text-[10px] uppercase font-bold text-emerald-500">Passed</span>
+                 </div>
+                 <div className="flex flex-col items-center bg-rose-500/10 border border-rose-500/30 rounded-lg px-4 py-2">
+                   <span className="text-2xl font-bold text-rose-400">{bulkResults.failed}</span>
+                   <span className="text-[10px] uppercase font-bold text-rose-500">Failed</span>
+                 </div>
+               </div>
+             </div>
+             
+             {bulkResults.failed > 0 && (
+               <div className="space-y-2">
+                 <h3 className="text-sm font-bold text-rose-400 mb-2">Failure Details</h3>
+                 {bulkResults.details.filter(d => d.error || (d.result && !d.result.passed)).map((d, i) => (
+                   <div key={i} className="bg-[#0a0a0a] border border-rose-500/20 rounded-lg p-3 text-xs font-mono">
+                     <div className="flex items-center justify-between mb-1">
+                       <span className="text-white font-bold">{d.api.method} {d.api.url}</span>
+                       <span className="text-zinc-500">{d.scenario.title}</span>
+                     </div>
+                     {d.error ? (
+                       <div className="text-rose-400">Error: {d.error}</div>
+                     ) : (
+                       <div className="flex items-center gap-4 text-rose-300">
+                         <span>Expected: {d.scenario.status_code}</span>
+                         <span>Actual: {d.result?.status_code}</span>
+                       </div>
+                     )}
+                   </div>
+                 ))}
+               </div>
+             )}
+           </div>
+        </Card>
+      )}
 
       {extractedApis.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface)]">
