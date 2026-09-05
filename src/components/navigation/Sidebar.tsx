@@ -14,6 +14,7 @@ import {
   FileCheck2,
   Layers,
   ArrowLeft,
+  Send,
 } from "lucide-react";
 
 // 1. General Navigation (Global Root View)
@@ -23,6 +24,7 @@ const GENERAL_NAV = [
     items: [
       { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { to: "/app/projects", label: "Projects", icon: FolderKanban },
+      { to: "/app/api-executor", label: "API Executor", icon: Send },
     ],
   },
   {
@@ -163,6 +165,11 @@ export function Sidebar() {
             to: `/app/new-workflow?project=${activeProjectUuid}`,
             label: "New Workflow",
             icon: FileCheck2,
+          },
+          {
+            to: `/app/api-executor?project=${activeProjectUuid}`,
+            label: "API Executor",
+            icon: Send,
           },
         ],
       },

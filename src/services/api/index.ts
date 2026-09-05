@@ -10,3 +10,4 @@ export { approvalApi } from "./approvalApi";
 export { agentApi } from "./agentApi";
 export { auditApi } from "./auditApi";
 export { dashboardApi } from "./dashboardApi";
+export { apiExecutorApi } from "./apiExecutorApi";

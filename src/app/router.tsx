@@ -16,6 +16,7 @@ import { ApprovalsPage } from "@/features/approvals/ApprovalsPage";
 import { AuditPage } from "@/features/audit/AuditPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { IntegrationsPage } from "@/features/integrations/IntegrationsPage";
+import { ApiExecutorPage } from "@/features/api-executor/ApiExecutorPage";
 
 export const router = createBrowserRouter([
   { path: "/", element: <LandingPage /> },
@@ -33,6 +34,7 @@ export const router = createBrowserRouter([
       { path: "workflows", element: <WorkflowsPage /> },
       { path: "workflows/:id", element: <WorkflowDetailPage /> },
       { path: "new-workflow", element: <NewWorkflowPage /> },
+      { path: "api-executor", element: <ApiExecutorPage /> },
       { path: "agents", element: <AgentMonitorPage /> },
       { path: "approvals", element: <ApprovalsPage /> },
       { path: "audit", element: <AuditPage /> },

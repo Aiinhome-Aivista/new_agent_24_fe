@@ -260,11 +260,15 @@ export interface ContractGap {
 export interface AssertionItem {
   name: string;
   passed: boolean;
+  error?: string | null;
 }
 
 export interface ExecutionResultItem {
   id: number;
   uuid: string;
+  test_case_id?: number | null;
+  test_key?: string;
+  test_case_title?: string;
   status_code: number;
   passed: boolean | number;
   duration_ms: number;
@@ -282,7 +286,14 @@ export interface ExecutionResultItem {
 export interface ExecutionRun {
   id: number;
   uuid: string;
-  workflow_id: string;
+  workflow_id?: string | null;
+  project_id?: number | null;
+  story_id?: number | null;
+  project_name?: string;
+  story_title?: string;
+  story_key?: string;
+  base_url?: string;
+  collection_name?: string;
   runner: string;
   environment?: string;
   collection?: string;
@@ -295,6 +306,32 @@ export interface ExecutionRun {
   completed_at?: string;
   created_at?: string;
   results?: ExecutionResultItem[];
+}
+
+export interface ApiEndpointItem {
+  id?: string | number;
+  test_case_id?: number;
+  test_key?: string;
+  name?: string;
+  method: string;
+  path: string;
+  headers?: Record<string, string>;
+  params?: Record<string, string>;
+  body?: string;
+  expected_status_code?: number;
+  expected_body_contains?: string;
+  assertions?: (string | { name: string; passed?: boolean })[];
+}
+
+export interface ApiRunPayload {
+  base_url: string;
+  endpoints?: ApiEndpointItem[];
+  collection_json?: any;
+  collection_name?: string;
+  project_uuid?: string;
+  story_uuid?: string;
+  runner_type?: "auto" | "http" | "newman" | "mock";
+  is_mock?: boolean;
 }
 
 export interface CodeQualityIssue {

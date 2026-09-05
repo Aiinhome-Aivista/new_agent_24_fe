@@ -1,5 +1,5 @@
 import { useParams, useSearchParams, Link } from "react-router-dom";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { usePolling } from "@/hooks/usePolling";
 import { workflowApi } from "@/services/api/workflowApi";
 import { testApi } from "@/services/api/testApi";
@@ -167,7 +167,6 @@ export function WorkflowDetailPage() {
         shouldFetchSla ? workflowApi.sla(id).catch(() => ({ sla: null })) : Promise.resolve({ sla: null }),
         shouldFetchAlm ? workflowApi.almPreview(id, almProvider).catch(() => ({ preview: null })) : Promise.resolve({ preview: null }),
         testApi.codeLog(id).catch(() => ({ code_log: null })),
-        workflowApi.sla(id).catch(() => ({ sla: null })),
       ]);
       if (dRes?.workflow) setWorkflowDetail(dRes.workflow);
       if (tRes) {
@@ -183,7 +182,6 @@ export function WorkflowDetailPage() {
       if (slaRes && slaRes.sla) setSlaData(slaRes.sla);
       if (almRes && almRes.preview) setAlmPreview(almRes.preview);
       if (clRes && clRes.code_log) setCodeLogData(clRes.code_log);
-      if (slaRes && slaRes.sla) setSlaData(slaRes.sla);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -212,17 +210,7 @@ export function WorkflowDetailPage() {
   // Re-fetch data when polling status changes
   useEffect(() => {
     if (status) {
-      const stageChanged = status.current_stage && status.current_stage !== prevStageRef.current;
-      const statusChanged = status.status && status.status !== prevStatusRef.current;
-
-      if (stageChanged || statusChanged) {
-        prevStageRef.current = status.current_stage;
-        prevStatusRef.current = status.status;
-        refreshCoreData();
-        if (activeTab !== "tests") {
-          loadTabData(activeTab);
-        }
-      }
+      refreshData();
     }
   }, [status?.current_stage, status?.status]);
 
