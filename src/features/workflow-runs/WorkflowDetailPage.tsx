@@ -60,6 +60,7 @@ import {
   ExternalLink,
   Target,
   ArrowRight,
+  Send,
 } from "lucide-react";
 
 const CHECKPOINT_GUIDES: Record<string, { title: string; desc: string }> = {
@@ -1661,7 +1662,7 @@ export function WorkflowDetailPage() {
           {/* TAB 2: API EXECUTION RESULTS */}
           {activeTab === "executions" && (
             <Card>
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h2 className="font-display text-base font-bold text-[var(--color-text-primary)]">
                     API Execution Results & Runtime Verifications
@@ -1670,14 +1671,33 @@ export function WorkflowDetailPage() {
                     Deterministic HTTP test execution runs against target services with status codes and assertion details.
                   </p>
                 </div>
+                <Link
+                  to={`/app/api-executor?project=${activeProjUuid}`}
+                  className="inline-flex items-center gap-2 rounded-xl bg-[var(--color-primary)] px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[var(--color-primary-hover)] transition-colors self-start sm:self-auto"
+                >
+                  <Send size={14} />
+                  <span>Launch API Executor</span>
+                </Link>
               </div>
 
               {executionRuns.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-[var(--color-border)] p-8 text-center">
-                  <Zap size={32} className="mx-auto text-[var(--color-text-secondary)]/40 mb-2" />
-                  <p className="text-xs font-medium text-[var(--color-text-secondary)]">
-                    No execution results yet. The API Executor stage runs after human review is approved.
+                <div className="rounded-xl border border-dashed border-[var(--color-border)] p-8 text-center space-y-3">
+                  <Zap size={32} className="mx-auto text-[var(--color-text-secondary)]/40" />
+                  <p className="text-sm font-semibold text-[var(--color-text-primary)]">
+                    API Execution is available in the Standalone API Executor
                   </p>
+                  <p className="text-xs text-[var(--color-text-secondary)] max-w-md mx-auto">
+                    API execution has been decoupled from the linear TDD workflow. You can test your local or deployed endpoints directly against this story's test cases with zero repository checkouts required.
+                  </p>
+                  <div className="pt-2">
+                    <Link
+                      to={`/app/api-executor?project=${activeProjUuid}`}
+                      className="inline-flex items-center gap-2 rounded-xl border border-[var(--color-border-orange)] bg-[var(--color-surface-elevated)] px-4 py-2 text-xs font-semibold text-[var(--color-primary)] hover:bg-[var(--color-surface-elevated)]/80 transition-colors shadow-sm"
+                    >
+                      <Send size={14} />
+                      <span>Open in API Executor</span>
+                    </Link>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-6">
