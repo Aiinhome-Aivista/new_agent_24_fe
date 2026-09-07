@@ -26,4 +26,13 @@ export const apiExecutorApi = {
       })
     );
   },
+
+  executeSingle: (payload: {
+    base_url?: string;
+    endpoint: Partial<ApiEndpointItem> & { method: string; path: string };
+  }): Promise<{ result: any; extracted_tokens: Record<string, any> }> =>
+    unwrap(apiClient.post("/api-executor/execute-single", payload)),
+
+  pingTarget: (url: string): Promise<{ reachable: boolean; status_code?: number; latency_ms?: number; error?: string }> =>
+    unwrap(apiClient.post("/api-executor/ping", { url })),
 };
