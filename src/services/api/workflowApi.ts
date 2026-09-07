@@ -1,4 +1,4 @@
-import { apiClient, unwrap } from "./apiClient";
+import { apiClient, unwrap, getAccessToken } from "./apiClient";
 import type { WorkflowRun, WorkflowSLA, AlmPreview } from "@/types";
 
 export const workflowApi = {
@@ -6,9 +6,9 @@ export const workflowApi = {
     unwrap<{ workflows: WorkflowRun[] }>(
       apiClient.get(project_uuid ? `/workflows?project=${project_uuid}` : "/workflows")
     ),
-  start: (story_uuid: string, capabilities: string[]) =>
+  start: (story_uuid: string, capabilities: string[], environment?: string) =>
     unwrap<{ workflow_id: string; task_id: string; status: string }>(
-      apiClient.post("/workflows", { story_uuid, capabilities })),
+      apiClient.post("/workflows", { story_uuid, capabilities, environment, base_url: environment })),
   detail: (id: string) =>
     unwrap<{ workflow: WorkflowRun; agent_runs: unknown[] }>(apiClient.get(`/workflows/${id}`)),
   status: (id: string) =>
@@ -24,7 +24,14 @@ export const workflowApi = {
     unwrap<{ sla: WorkflowSLA }>(apiClient.get(`/workflows/${id}/sla`)),
   almPreview: (id: string, provider = "azure_devops") =>
     unwrap<{ preview: AlmPreview }>(apiClient.get(`/workflows/${id}/alm-preview?provider=${provider}`)),
-  getEvidenceDownloadUrl: (id: string, format = "html") =>
-    `/api/v1/workflows/${id}/evidence/download?format=${format}`,
+  getEvidenceDownloadUrl: (id: string, format = "html") => {
+    const token = getAccessToken();
+    return `/api/v1/workflows/${id}/evidence/download?format=${format}${token ? `&token=${encodeURIComponent(token)}` : ""}`;
+  },
+  getScreenshotUrl: (id: string, filename: string) => {
+    const token = getAccessToken();
+    return `/api/v1/workflows/${id}/screenshots/${filename}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+  },
 };
+
 

@@ -9,6 +9,7 @@ export interface CreateProjectPayload {
   target_framework?: string;
   coding_standard?: string;
   git_repo_url?: string;
+  base_url?: string;
   git_provider?: string;
   git_branch?: string;
   base_branch?: string;
@@ -46,9 +47,12 @@ export const projectApi = {
     ),
 
   create: (data: CreateProjectPayload) =>
-    unwrap<{ project_id: number; uuid: string; key_code: string; name: string }>(
+    unwrap<{ project_id: number; uuid: string; key_code: string; name: string; base_url?: string }>(
       apiClient.post("/projects", data)
     ),
+
+  update: (uuid: string, data: Partial<CreateProjectPayload>) =>
+    unwrap<{ project: Project }>(apiClient.put(`/projects/${uuid}`, data)),
 
   delete: (uuid: string) =>
     unwrap<{ message: string; uuid: string }>(apiClient.delete(`/projects/${uuid}`)),

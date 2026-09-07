@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Zap, Construction, ChevronUp, ChevronDown, Check, Copy, FlaskConical, Play, Sparkles } from "lucide-react";
 import { workflowApi } from "@/services/api/workflowApi";
+import { projectApi } from "@/services/api/projectApi";
 import { testApi } from "@/services/api/testApi";
 import { useToast } from "@/contexts/ToastContext";
 import { Card } from "@/components/ui/Card";
@@ -45,10 +46,21 @@ export function ApiEndpointsPage() {
       }
       try {
         setLoading(true);
-        const wRes = await workflowApi.list();
+        const [wRes, pRes] = await Promise.all([
+          workflowApi.list(),
+          projectApi.detail(selectedProject).catch(() => null)
+        ]);
+        
+        if (pRes && pRes.project) {
+          const pBase = pRes.project.base_url || (pRes.project as any).api_base_url;
+          if (pBase) {
+            setLiveEnvUrl(pBase);
+          }
+        }
+
         const projectWorkflows = (wRes.workflows || []).filter((w: WorkflowRun) => w.project_uuid === selectedProject);
         
-        projectWorkflows.sort((a, b) => {
+        projectWorkflows.sort((a: any, b: any) => {
           const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
           const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
           return timeB - timeA;
@@ -87,12 +99,41 @@ export function ApiEndpointsPage() {
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
-  const handleLiveTest = async (scenario: any, idx: number, currScIdx: number | string) => {
+  // Custom Payload Editing States
+  const [customPayloads, setCustomPayloads] = useState<Record<string, string>>({});
+  const [isEditingPayload, setIsEditingPayload] = useState<Record<string, boolean>>({});
+
+  const handleLiveTest = async (scenario: any, api: any, idx: number, currScIdx: number | string) => {
     if (!workflowId) return;
     const key = `${idx}-${currScIdx}`;
     setRunningLiveTest(prev => ({ ...prev, [key]: true }));
     try {
-      const res = await testApi.runLiveTest(workflowId, scenario, liveEnvUrl);
+      let activeBody = customPayloads[key];
+      let parsedBody = scenario.actual_payload || scenario.payload || (scenario.request_spec && scenario.request_spec.body) || null;
+      if (activeBody !== undefined) {
+        try {
+          parsedBody = JSON.parse(activeBody);
+        } catch {
+          parsedBody = activeBody;
+        }
+      }
+
+      const mergedScenario = {
+        ...scenario,
+        method: scenario.method || api.method || "POST",
+        endpoint: scenario.endpoint || api.path || api.url || "/api",
+        actual_payload: parsedBody,
+        payload: parsedBody,
+        request_spec: {
+          method: scenario.method || api.method || "POST",
+          endpoint: scenario.endpoint || api.path || api.url || "/api",
+          body: parsedBody,
+          headers: {
+            "Content-Type": "application/json"
+          }
+        }
+      };
+      const res = await testApi.runLiveTest(workflowId, mergedScenario, liveEnvUrl);
       if (res && res.result) {
          setLiveTestResults(prev => ({ ...prev, [key]: res.result }));
          notify(res.result.passed ? "success" : "warning", `Live test ${res.result.passed ? 'passed' : 'failed'} (${res.result.status_code}) in ${res.result.duration_ms}ms`);
@@ -300,8 +341,17 @@ export function ApiEndpointsPage() {
                             const currScIdx = selectedScenarioIdx[`${idx}`] ?? 0;
                             const currSc = api.test_scenarios[currScIdx] || api.test_scenarios[0];
                             const is2xx = currSc.status_code >= 200 && currSc.status_code < 300;
-                            const payloadStr = currSc.actual_payload ? JSON.stringify(currSc.actual_payload, null, 2) : "// No request payload required (GET/DELETE)";
-                            const responseStr = currSc.actual_response ? JSON.stringify(currSc.actual_response, null, 2) : "{}";
+                            const payloadObj = currSc.actual_payload ?? (api.method === "POST" || api.method === "PUT" || api.method === "PATCH" ? api.payload_schema : null);
+                            const payloadStr = payloadObj && (typeof payloadObj === "object" ? Object.keys(payloadObj).length > 0 : true)
+                              ? JSON.stringify(payloadObj, null, 2)
+                              : (api.method === "GET" || api.method === "DELETE")
+                                ? `// No request body required (${api.method || "GET"})`
+                                : "{}";
+
+                            const rawResp = currSc.actual_response ?? api.response_schema;
+                            const responseStr = rawResp
+                              ? (typeof rawResp === "string" ? rawResp : JSON.stringify(rawResp, null, 2))
+                              : "{}";
 
                             return (
                               <div className="space-y-3">
@@ -321,12 +371,51 @@ export function ApiEndpointsPage() {
                                           <span>➔</span> Actual Request Payload
                                         </span>
                                         <div className="flex items-center gap-2">
+                                          {customPayloads[`${idx}-${currScIdx}`] !== undefined && (
+                                            <span className="rounded bg-amber-500/20 border border-amber-500/40 px-1.5 py-0.5 text-[10px] font-mono text-amber-300">
+                                              USER CUSTOMIZED
+                                            </span>
+                                          )}
                                           <span className="rounded bg-cyan-500/10 border border-cyan-500/30 px-1.5 py-0.5 text-[10px] font-mono text-cyan-300">
                                             REQUEST SENT
                                           </span>
+                                          {(api.method === "POST" || api.method === "PUT" || api.method === "PATCH") && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const key = `${idx}-${currScIdx}`;
+                                                setIsEditingPayload(prev => ({ ...prev, [key]: !prev[key] }));
+                                                if (!customPayloads[key]) {
+                                                  setCustomPayloads(prev => ({ ...prev, [key]: payloadStr }));
+                                                }
+                                              }}
+                                              className="rounded border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 px-2 py-0.5 text-[10px] font-mono text-cyan-300 transition-colors"
+                                              title="Edit custom payload values"
+                                            >
+                                              {isEditingPayload[`${idx}-${currScIdx}`] ? "✓ Done Editing" : "✏️ Edit Payload"}
+                                            </button>
+                                          )}
+                                          {customPayloads[`${idx}-${currScIdx}`] !== undefined && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const key = `${idx}-${currScIdx}`;
+                                                setCustomPayloads(prev => {
+                                                  const next = { ...prev };
+                                                  delete next[key];
+                                                  return next;
+                                                });
+                                                setIsEditingPayload(prev => ({ ...prev, [key]: false }));
+                                              }}
+                                              className="text-zinc-400 hover:text-amber-300 transition-colors text-[10px] font-mono px-1"
+                                              title="Reset to generated payload"
+                                            >
+                                              Reset
+                                            </button>
+                                          )}
                                           <button
                                             type="button"
-                                            onClick={() => handleCopy(payloadStr, `req-${idx}-${currScIdx}`)}
+                                            onClick={() => handleCopy(customPayloads[`${idx}-${currScIdx}`] ?? payloadStr, `req-${idx}-${currScIdx}`)}
                                             className="text-zinc-400 hover:text-cyan-300 transition-colors p-1"
                                             title="Copy Payload"
                                           >
@@ -334,9 +423,37 @@ export function ApiEndpointsPage() {
                                           </button>
                                         </div>
                                       </div>
-                                      <pre className="text-[11px] text-cyan-300 overflow-x-auto whitespace-pre leading-relaxed font-mono">
-                                        {payloadStr}
-                                      </pre>
+                                      {isEditingPayload[`${idx}-${currScIdx}`] ? (
+                                        <div className="space-y-1">
+                                          <textarea
+                                            rows={6}
+                                            value={customPayloads[`${idx}-${currScIdx}`] ?? payloadStr}
+                                            onChange={e => {
+                                              const val = e.target.value;
+                                              const key = `${idx}-${currScIdx}`;
+                                              setCustomPayloads(prev => ({ ...prev, [key]: val }));
+                                            }}
+                                            className="w-full bg-[#080b10] border border-cyan-500/40 rounded p-2 text-[11px] text-cyan-200 font-mono focus:outline-none focus:border-cyan-400 resize-y"
+                                            placeholder="Enter valid JSON payload..."
+                                          />
+                                          <div className="text-[10px] text-zinc-400 flex items-center justify-between">
+                                            <span>Type or paste any custom JSON values above.</span>
+                                            {(() => {
+                                              const val = customPayloads[`${idx}-${currScIdx}`] ?? payloadStr;
+                                              try {
+                                                JSON.parse(val);
+                                                return <span className="text-emerald-400">✓ Valid JSON</span>;
+                                              } catch {
+                                                return <span className="text-amber-400">⚠️ JSON syntax check</span>;
+                                              }
+                                            })()}
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <pre className="text-[11px] text-cyan-300 overflow-x-auto whitespace-pre leading-relaxed font-mono">
+                                          {customPayloads[`${idx}-${currScIdx}`] ?? payloadStr}
+                                        </pre>
+                                      )}
                                     </div>
                                   </div>
 
@@ -391,7 +508,7 @@ export function ApiEndpointsPage() {
                                   <Button
                                     variant="primary"
                                     loading={runningLiveTest[`${idx}-${currScIdx}`]}
-                                    onClick={() => handleLiveTest(currSc, idx, currScIdx)}
+                                    onClick={() => handleLiveTest(currSc, api, idx, currScIdx)}
                                     className="text-xs font-semibold px-4 py-1.5 flex items-center gap-2"
                                   >
                                     <Zap size={14} /> Run Live Test on Git Code
@@ -414,7 +531,9 @@ export function ApiEndpointsPage() {
                                          </div>
                                       </div>
                                       <pre className={`text-[11px] overflow-x-auto whitespace-pre font-mono ${liveTestResults[`${idx}-${currScIdx}`].passed ? 'text-emerald-300' : 'text-rose-300'}`}>
-                                         {liveTestResults[`${idx}-${currScIdx}`].response_body}
+                                         {typeof liveTestResults[`${idx}-${currScIdx}`].response_body === "string"
+                                           ? liveTestResults[`${idx}-${currScIdx}`].response_body
+                                           : JSON.stringify(liveTestResults[`${idx}-${currScIdx}`].response_body, null, 2)}
                                       </pre>
                                    </div>
                                 )}

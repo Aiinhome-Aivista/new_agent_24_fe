@@ -23,6 +23,7 @@ export interface Project {
   target_framework?: string;
   coding_standard?: string;
   git_repo_url?: string;
+  base_url?: string;
   git_provider?: string;
   git_branch?: string;
   base_branch?: string;

@@ -80,6 +80,7 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [gitRepoUrl, setGitRepoUrl] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
   const [gitBranch, setGitBranch] = useState("main");
   const [testingGit, setTestingGit] = useState(false);
   const [gitTestResult, setGitTestResult] = useState<GitConnectionResult | null>(null);
@@ -153,6 +154,7 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: Props) {
         description: description.trim(),
         git_provider: "github",
         git_repo_url: gitRepoUrl.trim() || undefined,
+        base_url: baseUrl.trim() || undefined,
         git_branch: gitBranch.trim() || "main",
         target_language: targetLang,
         tech_stack: `${targetLang} (${framework})`,
@@ -300,6 +302,19 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: Props) {
                     className="font-mono text-xs"
                   />
                 </div>
+              </div>
+
+              <div className="mt-2.5">
+                <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)] flex items-center justify-between">
+                  <span>Deployed Server / Live API Base URL <span className="text-[10px] text-[var(--color-text-tertiary)]">(Optional)</span></span>
+                  <span className="text-[10px] text-orange-400 font-mono">e.g. http://187.127.163.17:3035 or http://localhost:8080</span>
+                </label>
+                <Input
+                  placeholder="http://187.127.163.17:3035 or http://localhost:8080"
+                  value={baseUrl}
+                  onChange={(e) => setBaseUrl(e.target.value)}
+                  className="font-mono text-xs"
+                />
               </div>
 
               {/* Git Connectivity Status Feedback */}

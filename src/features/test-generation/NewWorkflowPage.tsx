@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Loading } from "@/components/ui/Loading";
 import { useToast } from "@/contexts/ToastContext";
 import type { Story, Project } from "@/types";
-import { Check, ShieldCheck, ArrowRight, Layers, Sparkles, GitBranch, AlertCircle } from "lucide-react";
+import { Check, ShieldCheck, ArrowRight, Layers, Sparkles, GitBranch, AlertCircle, Globe } from "lucide-react";
 
 const CAPABILITIES = [
   "Requirement Analysis",
@@ -34,6 +34,7 @@ export function NewWorkflowPage() {
   const [selectedProject, setSelectedProject] = useState<string>(preselectProject);
   const [stories, setStories] = useState<Story[]>([]);
   const [storyUuid, setStoryUuid] = useState(preselectStory);
+  const [targetEnvironment, setTargetEnvironment] = useState("");
   const [caps, setCaps] = useState<string[]>(CAPABILITIES);
   const [starting, setStarting] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -75,6 +76,14 @@ export function NewWorkflowPage() {
     })();
   }, [selectedProject]);
 
+  // Sync targetEnvironment when project changes
+  useEffect(() => {
+    const proj = projects.find((p) => p.uuid === selectedProject);
+    if (proj?.base_url && !targetEnvironment) {
+      setTargetEnvironment(proj.base_url);
+    }
+  }, [selectedProject, projects]);
+
   const toggle = (c: string) =>
     setCaps((cur) => (cur.includes(c) ? cur.filter((x) => x !== c) : [...cur, c]));
 
@@ -93,7 +102,7 @@ export function NewWorkflowPage() {
     }
     setStarting(true);
     try {
-      const res = await workflowApi.start(storyUuid, caps);
+      const res = await workflowApi.start(storyUuid, caps, targetEnvironment.trim() || undefined);
       notify("success", `Workflow initiated (${res.status})`);
       navigate(`/app/workflows/${res.workflow_id}${projUuid ? `?project=${projUuid}` : ""}`);
     } catch (e) {
@@ -276,6 +285,47 @@ export function NewWorkflowPage() {
               </button>
             );
           })}
+        </div>
+      </Card>
+
+      {/* Target Execution Environment / API Base URL */}
+      <Card className="mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="font-display text-sm font-semibold uppercase tracking-wide text-[var(--color-text-secondary)] flex items-center gap-2">
+            <Globe size={15} className="text-[var(--color-primary)]" />
+            3 · Target API Base URL / Execution Server
+          </h2>
+          <span className="text-[10px] text-zinc-400 font-mono">
+            {targetEnvironment.startsWith("http://localhost") || targetEnvironment.startsWith("http://127.0.0.1")
+              ? "Localhost Dev Server"
+              : targetEnvironment.trim()
+                ? "Live Deployed Server"
+                : "Auto-Detecting"}
+          </span>
+        </div>
+        <p className="text-xs text-[var(--color-text-secondary)] mb-3">
+          Specify your live deployed server IP / domain or local dev URL where the API is running for real-time automated execution:
+        </p>
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-zinc-400 select-none">
+              URL:
+            </span>
+            <input
+              type="text"
+              value={targetEnvironment}
+              onChange={(e) => setTargetEnvironment(e.target.value)}
+              placeholder="e.g. http://187.127.163.17:3035 or http://localhost:8080"
+              className="w-full pl-12 pr-4 py-2 text-xs font-mono rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] text-[var(--color-text-primary)] placeholder-zinc-500 focus:outline-none focus:border-[var(--color-primary)] transition-colors"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setTargetEnvironment("http://localhost:8080")}
+            className="text-[11px] px-2.5 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/50 transition-colors whitespace-nowrap"
+          >
+            Reset Localhost
+          </button>
         </div>
       </Card>
 

@@ -60,6 +60,9 @@ import {
   ExternalLink,
   Target,
   ArrowRight,
+  Camera,
+  FileDown,
+  Eye,
 } from "lucide-react";
 
 const CHECKPOINT_GUIDES: Record<string, { title: string; desc: string }> = {
@@ -125,7 +128,10 @@ export function WorkflowDetailPage() {
   const [expandedApiId, setExpandedApiId] = useState<string | null>(null);
   const [selectedScenarioIdx, setSelectedScenarioIdx] = useState<Record<string, number>>({});
   const [apiViewTab, setApiViewTab] = useState<Record<string, "scenarios" | "schema">>({});
+  const [editingTestPayload, setEditingTestPayload] = useState<Record<string, string>>({});
+  const [isEditingTestPayload, setIsEditingTestPayload] = useState<Record<string, boolean>>({});
   const [selectedEvidence, setSelectedEvidence] = useState<EvidencePackage | null>(null);
+  const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [runningLiveTest, setRunningLiveTest] = useState<Record<string, boolean>>({});
   const [liveTestResults, setLiveTestResults] = useState<Record<string, any>>({});
@@ -1211,21 +1217,83 @@ export function WorkflowDetailPage() {
                                     </div>
                                   )}
                                 </div>
+                                {reqBody || (reqMethod === "POST" || reqMethod === "PUT" || reqMethod === "PATCH") ? (
+                                   <div className="space-y-1.5 pt-1">
+                                     <div className="flex items-center justify-between">
+                                       <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
+                                         Request Payload (Test Data):
+                                       </span>
+                                       <div className="flex items-center gap-1.5">
+                                         {editingTestPayload[t.uuid] !== undefined && (
+                                           <span className="rounded bg-amber-500/20 border border-amber-500/40 px-1.5 py-0.5 text-[9px] font-mono text-amber-300">
+                                             CUSTOMIZED
+                                           </span>
+                                         )}
+                                         <button
+                                           type="button"
+                                           onClick={(e) => {
+                                             e.stopPropagation();
+                                             setIsEditingTestPayload(prev => ({ ...prev, [t.uuid]: !prev[t.uuid] }));
+                                             if (!editingTestPayload[t.uuid]) {
+                                               setEditingTestPayload(prev => ({ ...prev, [t.uuid]: JSON.stringify(reqBody || {}, null, 2) }));
+                                             }
+                                           }}
+                                           className="rounded border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 px-2 py-0.5 text-[10px] font-mono text-cyan-300 transition-colors"
+                                         >
+                                           {isEditingTestPayload[t.uuid] ? "✓ Done" : "✏️ Edit Payload"}
+                                         </button>
+                                         {editingTestPayload[t.uuid] !== undefined && (
+                                           <button
+                                             type="button"
+                                             onClick={(e) => {
+                                               e.stopPropagation();
+                                               setEditingTestPayload(prev => {
+                                                 const next = { ...prev };
+                                                 delete next[t.uuid];
+                                                 return next;
+                                               });
+                                               setIsEditingTestPayload(prev => ({ ...prev, [t.uuid]: false }));
+                                             }}
+                                             className="text-zinc-400 hover:text-amber-300 text-[10px] font-mono px-1"
+                                           >
+                                             Reset
+                                           </button>
+                                         )}
+                                       </div>
+                                     </div>
 
-                                {reqBody ? (
-                                  <div className="space-y-1 pt-1">
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
-                                      Request Payload (Test Data):
-                                    </span>
-                                    <pre className="rounded-lg bg-[#0d1117] p-2.5 text-[11px] font-mono text-cyan-300 overflow-x-auto max-h-40 border border-white/5">
-                                      <code>{JSON.stringify(reqBody, null, 2)}</code>
-                                    </pre>
-                                  </div>
-                                ) : (
-                                  <div className="rounded-lg bg-[var(--color-surface-elevated)] p-2 text-[10px] font-mono text-[var(--color-text-secondary)]">
-                                    No request body required
-                                  </div>
-                                )}
+                                     {isEditingTestPayload[t.uuid] ? (
+                                       <textarea
+                                         rows={5}
+                                         value={editingTestPayload[t.uuid] ?? JSON.stringify(reqBody || {}, null, 2)}
+                                         onChange={e => {
+                                           const val = e.target.value;
+                                           setEditingTestPayload(prev => ({ ...prev, [t.uuid]: val }));
+                                           try {
+                                             const parsed = JSON.parse(val);
+                                            if (t.request_spec) {
+                                              t.request_spec.body = parsed;
+                                            } else {
+                                              (t as any).request_spec = { method: (t as any).method || 'POST', endpoint: (t as any).url || '/api', body: parsed };
+                                            }
+                                             (t as any).actual_payload = parsed;
+                                             (t as any).payload = parsed;
+                                           } catch {}
+                                         }}
+                                         className="w-full bg-[#080b10] border border-cyan-500/40 rounded p-2 text-[11px] text-cyan-200 font-mono focus:outline-none focus:border-cyan-400 resize-y"
+                                         placeholder="Enter JSON payload..."
+                                       />
+                                     ) : (
+                                       <pre className="rounded-lg bg-[#0d1117] p-2.5 text-[11px] font-mono text-cyan-300 overflow-x-auto max-h-40 border border-white/5">
+                                         <code>{editingTestPayload[t.uuid] ?? JSON.stringify(reqBody, null, 2)}</code>
+                                       </pre>
+                                     )}
+                                   </div>
+                                 ) : (
+                                   <div className="rounded-lg bg-[var(--color-surface-elevated)] p-2 text-[10px] font-mono text-[var(--color-text-secondary)]">
+                                     No request body required
+                                   </div>
+                                 )}
                               </div>
 
                               {/* 2. Expected Response Specification */}
@@ -1485,10 +1553,10 @@ export function WorkflowDetailPage() {
                                     </span>
                                     <div className="flex items-center gap-2">
                                       <span className="rounded bg-[var(--color-surface-elevated)] px-1.5 py-0.5 font-mono text-[10px] font-bold text-[var(--color-text-primary)]">
-                                        {res.method || "POST"}
+                                        {res.method || (res as any).request?.method || "POST"}
                                       </span>
                                       <span className="font-mono text-xs font-semibold text-[var(--color-text-primary)]">
-                                        {res.url || "/api/endpoint"}
+                                        {res.url || (res as any).request?.url || (res as any).endpoint || "/api/resource"}
                                       </span>
                                     </div>
                                   </div>
@@ -1536,23 +1604,46 @@ export function WorkflowDetailPage() {
                                       </div>
                                     )}
 
-                                    {/* Raw Response Payload */}
-                                    {res.resp_body && (
+                                    {/* Request & Response Payloads */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                                      {/* Request Payload */}
                                       <div>
                                         <span className="text-[var(--color-text-secondary)] font-sans font-semibold block mb-1">
-                                          Response Payload:
+                                          Request Payload (Sent):
                                         </span>
-                                        <pre className="rounded-lg bg-[#0d1117] p-3 text-[11px] text-cyan-300 overflow-x-auto">
+                                        <pre className="rounded-lg bg-[#0d1117] p-3 text-[11px] text-cyan-300 overflow-x-auto border border-cyan-500/20">
                                           {(() => {
+                                            const reqBody = (res as any).req_body || (res as any).request?.body || (res as any).request_body;
+                                            if (!reqBody || (typeof reqBody === "object" && Object.keys(reqBody).length === 0)) {
+                                              return "// No request body (GET/DELETE or empty)";
+                                            }
                                             try {
-                                              return JSON.stringify(JSON.parse(res.resp_body), null, 2);
+                                              return typeof reqBody === "string" ? JSON.stringify(JSON.parse(reqBody), null, 2) : JSON.stringify(reqBody, null, 2);
                                             } catch {
-                                              return res.resp_body;
+                                              return String(reqBody);
                                             }
                                           })()}
                                         </pre>
                                       </div>
-                                    )}
+
+                                      {/* Response Payload */}
+                                      <div>
+                                        <span className="text-[var(--color-text-secondary)] font-sans font-semibold block mb-1">
+                                          Response Payload (Received):
+                                        </span>
+                                        <pre className="rounded-lg bg-[#0d1117] p-3 text-[11px] text-emerald-300 overflow-x-auto border border-emerald-500/20">
+                                          {(() => {
+                                            const respBody = res.resp_body || (res as any).response_body;
+                                            if (!respBody) return "// No response body";
+                                            try {
+                                              return typeof respBody === "string" ? JSON.stringify(JSON.parse(respBody), null, 2) : JSON.stringify(respBody, null, 2);
+                                            } catch {
+                                              return String(respBody);
+                                            }
+                                          })()}
+                                        </pre>
+                                      </div>
+                                    </div>
                                   </div>
                                 )}
                               </div>
@@ -1670,25 +1761,46 @@ export function WorkflowDetailPage() {
           {/* TAB 4: AUDIT EVIDENCE ARTIFACTS */}
           {activeTab === "evidence" && (
             <Card>
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] pb-4">
                 <div>
-                  <h2 className="font-display text-base font-bold text-[var(--color-text-primary)]">
-                    Execution Evidence & Audit Proof
+                  <h2 className="font-display text-base font-bold text-[var(--color-text-primary)] flex items-center gap-2">
+                    <FileCheck2 className="text-[var(--color-primary)]" size={18} />
+                    Execution Evidence & Audit Proof Packages
                   </h2>
                   <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
-                    Immutable, SHA256-signed test evidence documents exportable in HTML, Markdown, and JSON.
+                    Immutable, SHA256-signed test evidence documents exportable in Word (.docx), PDF (.pdf), HTML, and JSON.
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <a
+                    href={workflowApi.getEvidenceDownloadUrl(id, "pdf")}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-400 hover:bg-rose-500/20 transition-colors shadow-sm"
+                  >
+                    <FileDown size={14} />
+                    <span>Download PDF</span>
+                  </a>
+
+                  <a
+                    href={workflowApi.getEvidenceDownloadUrl(id, "docx")}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 text-xs font-semibold text-blue-400 hover:bg-blue-500/20 transition-colors shadow-sm"
+                  >
+                    <Download size={14} />
+                    <span>Download Word (.docx)</span>
+                  </a>
+
                   <a
                     href={workflowApi.getEvidenceDownloadUrl(id, "html")}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--color-primary)] hover:bg-[var(--color-primary)]/20 transition-colors"
                   >
-                    <Download size={13} />
-                    <span>Download HTML Report</span>
+                    <Printer size={13} />
+                    <span>HTML Report</span>
                   </a>
 
                   <a
@@ -1700,10 +1812,6 @@ export function WorkflowDetailPage() {
                     <FileCode size={13} />
                     <span>JSON Bundle</span>
                   </a>
-
-                  <span className="rounded-full bg-[var(--color-surface-elevated)] px-2.5 py-1 font-mono text-xs text-[var(--color-text-secondary)]">
-                    {evidenceList.length} Artifact(s)
-                  </span>
                 </div>
               </div>
 
@@ -1715,49 +1823,134 @@ export function WorkflowDetailPage() {
                   </p>
                 </div>
               ) : (
-                <div className="flex flex-col gap-3">
-                  {evidenceList.map((e) => (
-                    <div
-                      key={e.uuid}
-                      className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 hover:border-[var(--color-primary)]/40 transition-colors"
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-mono text-sm font-bold text-[var(--color-primary)]">
-                              {e.evidence_key}
+                <div className="flex flex-col gap-6">
+                  {/* Artifact Cards */}
+                  <div className="flex flex-col gap-3">
+                    {evidenceList.map((e) => (
+                      <div
+                        key={e.uuid}
+                        className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 hover:border-[var(--color-primary)]/40 transition-colors"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-mono text-sm font-bold text-[var(--color-primary)]">
+                                {e.evidence_key}
+                              </p>
+                              <span className="rounded bg-[var(--color-surface-elevated)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--color-text-secondary)]">
+                                {(e.format || "MD").toUpperCase()}
+                              </span>
+                              <StatusBadge status={e.approval_status} />
+                            </div>
+                            <p className="font-mono text-[11px] text-[var(--color-text-secondary)] mt-1">
+                              SHA-256: <span className="text-[var(--color-text-primary)]">{e.checksum || "Verified"}</span>
                             </p>
-                            <span className="rounded bg-[var(--color-surface-elevated)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--color-text-secondary)]">
-                              {(e.format || "MD").toUpperCase()}
-                            </span>
-                            <StatusBadge status={e.approval_status} />
                           </div>
-                          <p className="font-mono text-[11px] text-[var(--color-text-secondary)] mt-1">
-                            SHA-256: <span className="text-[var(--color-text-primary)]">{e.checksum || "Verified"}</span>
-                          </p>
-                        </div>
 
-                        <div className="flex flex-wrap items-center gap-2">
-                          <a
-                            href={workflowApi.getEvidenceDownloadUrl(id, "html")}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-xs rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-2.5 py-1.5 font-medium text-[var(--color-text-secondary)] hover:text-white transition-colors"
-                          >
-                            <Printer size={13} /> Print / HTML
-                          </a>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <a
+                              href={workflowApi.getEvidenceDownloadUrl(id, "pdf")}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-xs rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 font-medium text-rose-400 hover:bg-rose-500/20 transition-colors"
+                            >
+                              <FileDown size={13} /> PDF
+                            </a>
 
-                          <Button
-                            variant="secondary"
-                            onClick={() => setSelectedEvidence(e)}
-                            className="flex items-center gap-1.5 text-xs py-1.5 px-3 font-semibold"
-                          >
-                            <FileText size={14} /> View Markdown
-                          </Button>
+                            <a
+                              href={workflowApi.getEvidenceDownloadUrl(id, "docx")}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-xs rounded-lg border border-blue-500/40 bg-blue-500/10 px-2.5 py-1.5 font-medium text-blue-400 hover:bg-blue-500/20 transition-colors"
+                            >
+                              <Download size={13} /> Word (.docx)
+                            </a>
+
+                            <a
+                              href={workflowApi.getEvidenceDownloadUrl(id, "html")}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-xs rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-2.5 py-1.5 font-medium text-[var(--color-text-secondary)] hover:text-white transition-colors"
+                            >
+                              <Printer size={13} /> Print
+                            </a>
+
+                            <Button
+                              variant="secondary"
+                              onClick={() => setSelectedEvidence(e)}
+                              className="flex items-center gap-1.5 text-xs py-1.5 px-3 font-semibold"
+                            >
+                              <FileText size={14} /> Markdown
+                            </Button>
+                          </div>
                         </div>
                       </div>
+                    ))}
+                  </div>
+
+                  {/* Visual Newman Screenshots Gallery */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-display text-sm font-bold text-[var(--color-text-primary)] flex items-center gap-2">
+                        <Camera className="text-orange-400" size={16} />
+                        Newman Execution Screenshots & Assertion Proof
+                      </h3>
+                      <span className="text-xs text-[var(--color-text-secondary)]">
+                        {tests.length} Test Evidence Card(s)
+                      </span>
                     </div>
-                  ))}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {tests.map((tc) => {
+                        const screenshotUrl = workflowApi.getScreenshotUrl(id, `${tc.test_key}.png`);
+                        return (
+                          <div
+                            key={tc.uuid}
+                            className="group relative rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] p-3 hover:border-orange-500/40 transition-all flex flex-col justify-between"
+                          >
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <span className="font-mono text-xs font-bold text-orange-400">
+                                {tc.test_key}
+                              </span>
+                              <span className="text-[11px] font-semibold text-[var(--color-text-primary)] truncate max-w-[200px]">
+                                {tc.title}
+                              </span>
+                            </div>
+
+                            <div
+                              onClick={() => setSelectedScreenshot(screenshotUrl)}
+                              className="relative overflow-hidden rounded-lg border border-[var(--color-border)] bg-[#0f172a] cursor-pointer aspect-[16/10] flex items-center justify-center group-hover:shadow-lg transition-shadow"
+                            >
+                              <img
+                                src={screenshotUrl}
+                                alt={`${tc.test_key} Screenshot`}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                onError={(e) => {
+                                  // Fallback placeholder if image not yet on disk
+                                  (e.target as HTMLImageElement).style.display = "none";
+                                }}
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1.5 text-xs font-semibold text-white transition-opacity">
+                                <Eye size={16} />
+                                <span>Expand Full Evidence</span>
+                              </div>
+                            </div>
+
+                            <div className="mt-2.5 flex items-center justify-between text-[11px] text-[var(--color-text-secondary)]">
+                              <span>Method: <strong className="text-emerald-400">{tc.request_spec?.method || "POST"}</strong></span>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedScreenshot(screenshotUrl)}
+                                className="inline-flex items-center gap-1 text-orange-400 hover:text-orange-300 font-medium"
+                              >
+                                <Eye size={12} /> View Full
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               )}
             </Card>

@@ -36,6 +36,10 @@ import {
   Loader2,
   Trash2,
   AlertTriangle,
+  Globe,
+  Edit2,
+  Save,
+  X,
 } from "lucide-react";
 
 const healthColor: Record<string, string> = {
@@ -66,6 +70,30 @@ export function ProjectDashboardPage() {
   const [storyToDelete, setStoryToDelete] = useState<Story | null>(null);
   const [deletingStory, setDeletingStory] = useState(false);
   const [deleteStoryError, setDeleteStoryError] = useState<string | null>(null);
+
+  const [editingBaseUrl, setEditingBaseUrl] = useState(false);
+  const [newBaseUrl, setNewBaseUrl] = useState("");
+  const [savingBaseUrl, setSavingBaseUrl] = useState(false);
+
+  const handleStartEditBaseUrl = () => {
+    setNewBaseUrl(project?.base_url || "");
+    setEditingBaseUrl(true);
+  };
+
+  const handleSaveBaseUrl = async () => {
+    if (!uuid) return;
+    setSavingBaseUrl(true);
+    try {
+      await projectApi.update(uuid, { base_url: newBaseUrl.trim() });
+      notify("success", "API Base URL updated successfully");
+      setEditingBaseUrl(false);
+      await loadProjectData();
+    } catch (err: any) {
+      notify("error", err?.message || "Failed to update Base URL");
+    } finally {
+      setSavingBaseUrl(false);
+    }
+  };
 
   const handleDeleteStory = async () => {
     if (!storyToDelete) return;
@@ -219,6 +247,11 @@ export function ProjectDashboardPage() {
               {project.git_branch && (
                 <span className="inline-flex items-center gap-1 rounded-md bg-[var(--color-surface-elevated)] border border-[var(--color-border)] px-2 py-0.5 font-mono text-[var(--color-text-secondary)]">
                   <GitBranch size={12} /> {project.git_branch}
+                </span>
+              )}
+              {project.base_url && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-cyan-500/10 border border-cyan-500/30 px-2 py-0.5 font-mono text-[11px] text-cyan-400">
+                  <Globe size={11} /> {project.base_url}
                 </span>
               )}
               {project.git_repo_url && (
@@ -627,6 +660,80 @@ export function ProjectDashboardPage() {
                     )}
                   </div>
                 </div>
+              </div>
+
+              {/* Live Deployed API & Base URL Card */}
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-display text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
+                    <Globe size={16} className="text-cyan-400" /> Target Execution URL
+                  </h3>
+                  {!editingBaseUrl && (
+                    <button
+                      type="button"
+                      onClick={handleStartEditBaseUrl}
+                      className="inline-flex items-center gap-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-2.5 py-1 text-xs font-medium text-[var(--color-text-primary)] hover:border-cyan-500/50 hover:text-cyan-400 transition-colors shadow-sm"
+                    >
+                      <Edit2 size={11} /> Edit URL
+                    </button>
+                  )}
+                </div>
+
+                {editingBaseUrl ? (
+                  <div className="space-y-3">
+                    <p className="text-[11px] text-[var(--color-text-secondary)]">
+                      Set the deployed server address (e.g. <code className="text-cyan-400 font-mono">http://187.127.163.17:3035</code>) or local URL used for automated test executions:
+                    </p>
+                    <input
+                      type="text"
+                      value={newBaseUrl}
+                      onChange={(e) => setNewBaseUrl(e.target.value)}
+                      placeholder="http://187.127.163.17:3035"
+                      className="w-full px-3 py-1.5 text-xs font-mono rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] text-[var(--color-text-primary)] placeholder-zinc-500 focus:outline-none focus:border-cyan-500"
+                    />
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditingBaseUrl(false)}
+                        disabled={savingBaseUrl}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                      >
+                        <X size={12} /> Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveBaseUrl}
+                        disabled={savingBaseUrl}
+                        className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white disabled:opacity-50"
+                      >
+                        {savingBaseUrl ? (
+                          <>
+                            <Loader2 size={11} className="animate-spin" /> Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Save size={12} /> Save URL
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between py-1 border-b border-[var(--color-border)]">
+                      <span className="text-[var(--color-text-secondary)]">Server Base URL:</span>
+                      <span className="font-mono text-cyan-400 font-medium">
+                        {project.base_url || "Auto-detect / Localhost"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-1">
+                      <span className="text-[var(--color-text-secondary)]">Execution Mode:</span>
+                      <span className="font-medium text-[var(--color-text-primary)]">
+                        {project.base_url ? "Target Server (Live)" : "Auto-Resolved"}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
