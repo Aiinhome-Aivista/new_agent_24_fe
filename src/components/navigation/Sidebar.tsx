@@ -24,7 +24,6 @@ const GENERAL_NAV = [
     items: [
       { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { to: "/app/projects", label: "Projects", icon: FolderKanban },
-      { to: "/app/api-executor", label: "API Executor", icon: Send },
     ],
   },
   /*
