@@ -116,18 +116,21 @@ export function ApiExecutorPage() {
   const [inspectedResult, setInspectedResult] = useState<ExecutionResultItem | null>(null);
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
 
-  // Load Projects on mount
+  // Load Projects on mount & sync projectParam
   useEffect(() => {
+    if (projectParam) {
+      setSelectedProjectUuid(projectParam);
+    }
     projectApi
       .list()
       .then((res) => {
         setProjects(res.projects || []);
-        if (!selectedProjectUuid && res.projects?.length > 0) {
+        if (!selectedProjectUuid && !projectParam && res.projects?.length > 0) {
           setSelectedProjectUuid(res.projects[0].uuid);
         }
       })
       .catch(() => {});
-  }, []);
+  }, [projectParam]);
 
   // Load Stories when project changes
   useEffect(() => {
@@ -1259,22 +1262,6 @@ export function ApiExecutorPage() {
                 {/* MODE 1: STORY TEST CASES */}
                 {sourceMode === "story" && (
                   <div className="space-y-3 pt-1">
-                    <div>
-                      <label className="text-xs font-medium text-[var(--color-text-secondary)]">Select Project</label>
-                      <select
-                        value={selectedProjectUuid}
-                        onChange={(e) => setSelectedProjectUuid(e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-2 text-xs text-[var(--color-text-primary)]"
-                      >
-                        {projects.map((p) => (
-                          <option key={p.uuid} value={p.uuid}>
-                            {p.key_code ? `[${p.key_code}] ` : ""}
-                            {p.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
                     <div>
                       <label className="text-xs font-medium text-[var(--color-text-secondary)]">Select Story</label>
                       {loadingStories ? (
