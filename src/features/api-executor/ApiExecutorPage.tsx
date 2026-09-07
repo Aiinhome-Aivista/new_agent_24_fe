@@ -37,7 +37,7 @@ import { Button } from "@/components/ui/Button";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { Loading } from "@/components/ui/Loading";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import type { ApiEndpointItem, ExecutionRun, ExecutionResultItem, Project, Story } from "@/types";
+import type { ApiEndpointItem, ExecutionRun, ExecutionResultItem, Project, Story, ApiContract, KnowledgeDocument } from "@/types";
 
 const METHOD_COLORS: Record<string, string> = {
   GET: "bg-emerald-500/10 text-emerald-600 border-emerald-500/30",
@@ -78,6 +78,12 @@ export function ApiExecutorPage() {
   const [stories, setStories] = useState<Story[]>([]);
   const [selectedStoryUuid, setSelectedStoryUuid] = useState<string>("");
   const [loadingStories, setLoadingStories] = useState(false);
+
+  // Project Postman Collections & Contracts State
+  const [projectContracts, setProjectContracts] = useState<ApiContract[]>([]);
+  const [projectKnowledgeDocs, setProjectKnowledgeDocs] = useState<KnowledgeDocument[]>([]);
+  const [loadingProjectCollections, setLoadingProjectCollections] = useState(false);
+  const [selectedCollectionKey, setSelectedCollectionKey] = useState<string>("ALL");
 
   // Manual Console State
   const [manualMethod, setManualMethod] = useState("POST");
@@ -151,6 +157,33 @@ export function ApiExecutorPage() {
       })
       .catch(() => setStories([]))
       .finally(() => setLoadingStories(false));
+  }, [selectedProjectUuid]);
+
+  // Load Project Contracts & Collections when project changes
+  useEffect(() => {
+    if (!selectedProjectUuid) {
+      setProjectContracts([]);
+      setProjectKnowledgeDocs([]);
+      return;
+    }
+    setLoadingProjectCollections(true);
+    projectApi
+      .detail(selectedProjectUuid)
+      .then((res) => {
+        setProjectContracts(res.contracts?.contracts || []);
+        const postmanDocs = (res.knowledge || []).filter(
+          (d) =>
+            d.doc_type === "postman_collection" ||
+            d.doc_type === "bruno_collection" ||
+            d.doc_type === "api_contract"
+        );
+        setProjectKnowledgeDocs(postmanDocs);
+      })
+      .catch(() => {
+        setProjectContracts([]);
+        setProjectKnowledgeDocs([]);
+      })
+      .finally(() => setLoadingProjectCollections(false));
   }, [selectedProjectUuid]);
 
   // Load History when History tab is selected
@@ -342,6 +375,47 @@ export function ApiExecutorPage() {
     } catch (err: any) {
       setStatusMessage({ type: "error", text: err?.message || "Failed to load story test cases" });
     }
+  };
+
+  // Load Uploaded Project Postman Collection / Contracts into Suite Runner Queue
+  const handleLoadProjectPostmanCollection = () => {
+    if (!projectContracts || projectContracts.length === 0) {
+      setStatusMessage({
+        type: "info",
+        text: "No uploaded Postman contracts found for this project yet. Upload a JSON file below to import.",
+      });
+      return;
+    }
+
+    let filtered = projectContracts;
+    if (selectedCollectionKey !== "ALL") {
+      filtered = projectContracts.filter(
+        (c) => c.service_name === selectedCollectionKey || c.uuid === selectedCollectionKey
+      );
+    }
+
+    const loadedEndpoints: ApiEndpointItem[] = filtered.map((c, i) => ({
+      id: Date.now() + i,
+      test_key: `${c.method.toUpperCase()} ${c.path}`,
+      name: c.service_name ? `[${c.service_name}] ${c.method.toUpperCase()} ${c.path}` : `${c.method.toUpperCase()} ${c.path}`,
+      method: c.method.toUpperCase(),
+      path: c.path,
+      expected_status_code: 200,
+      body: c.request_schema && Object.keys(c.request_schema).length > 0 ? JSON.stringify(c.request_schema, null, 2) : undefined,
+      headers: { "Content-Type": "application/json" },
+      assertions: ["Status code is 200"],
+    }));
+
+    setEndpoints(loadedEndpoints);
+    setCollectionName(
+      selectedCollectionKey !== "ALL"
+        ? `Postman Collection: ${selectedCollectionKey}`
+        : `Project Postman Contracts (${loadedEndpoints.length} endpoints)`
+    );
+    setStatusMessage({
+      type: "success",
+      text: `Loaded ${loadedEndpoints.length} endpoints from project Postman collection.`,
+    });
   };
 
   // Upload Postman File
@@ -1300,41 +1374,98 @@ export function ApiExecutorPage() {
 
                 {/* MODE 2: POSTMAN COLLECTION */}
                 {sourceMode === "postman" && (
-                  <div className="space-y-3 pt-1">
-                    <div>
-                      <label className="text-xs font-medium text-[var(--color-text-secondary)]">Upload Collection JSON</label>
-                      <input
-                        type="file"
-                        accept=".json"
-                        onChange={handleFileUpload}
-                        className="mt-1.5 w-full cursor-pointer text-xs text-[var(--color-text-secondary)] file:mr-2 file:rounded-lg file:border-0 file:bg-[var(--color-surface-elevated)] file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-[var(--color-primary)] hover:file:bg-[var(--color-surface-elevated)]/80"
+                  <div className="space-y-4 pt-1">
+                    {/* Section 1: Already Uploaded Postman Collections for this Project */}
+                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)]/40 p-3 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-[var(--color-text-primary)] flex items-center gap-1.5">
+                          <FileJson size={14} className="text-[var(--color-primary)]" />
+                          <span>Project Uploaded Postman Collections</span>
+                        </label>
+                        {loadingProjectCollections && (
+                          <span className="text-[10px] text-[var(--color-text-secondary)]">Loading...</span>
+                        )}
+                      </div>
+
+                      {projectContracts.length > 0 || projectKnowledgeDocs.length > 0 ? (
+                        <div className="space-y-2">
+                          <select
+                            value={selectedCollectionKey}
+                            onChange={(e) => setSelectedCollectionKey(e.target.value)}
+                            className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-2 text-xs text-[var(--color-text-primary)]"
+                          >
+                            <option value="ALL">
+                              All Uploaded Contracts ({projectContracts.length} endpoints)
+                            </option>
+                            {Array.from(new Set(projectContracts.map((c) => c.service_name).filter(Boolean))).map(
+                              (srvName) => (
+                                <option key={srvName} value={srvName}>
+                                  Collection / Service: {srvName}
+                                </option>
+                              )
+                            )}
+                            {projectKnowledgeDocs.map((doc) => (
+                              <option key={doc.uuid} value={doc.uuid}>
+                                Document: {doc.title}
+                              </option>
+                            ))}
+                          </select>
+
+                          <Button
+                            variant="primary"
+                            onClick={handleLoadProjectPostmanCollection}
+                            className="w-full text-xs"
+                          >
+                            <BookOpen size={14} />
+                            <span>Load Uploaded Collection Endpoints</span>
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border border-dashed border-[var(--color-border)] p-3 text-center">
+                          <p className="text-xs text-[var(--color-text-secondary)]">
+                            No uploaded Postman collection found for this project yet. Upload a JSON file below.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Section 2: Upload New Collection JSON / Paste */}
+                    <div className="space-y-3 pt-1 border-t border-[var(--color-border)]">
+                      <div>
+                        <label className="text-xs font-medium text-[var(--color-text-secondary)]">Upload New Collection JSON</label>
+                        <input
+                          type="file"
+                          accept=".json,.bru"
+                          onChange={handleFileUpload}
+                          className="mt-1.5 w-full cursor-pointer text-xs text-[var(--color-text-secondary)] file:mr-2 file:rounded-lg file:border-0 file:bg-[var(--color-surface-elevated)] file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-[var(--color-primary)] hover:file:bg-[var(--color-surface-elevated)]/80"
+                        />
+                      </div>
+
+                      <div className="relative flex items-center justify-center">
+                        <div className="border-t border-[var(--color-border)] w-full" />
+                        <span className="bg-[var(--color-surface)] px-2 text-[10px] text-[var(--color-text-secondary)] uppercase">
+                          or paste JSON
+                        </span>
+                      </div>
+
+                      <textarea
+                        rows={3}
+                        value={postmanJsonText}
+                        onChange={(e) => setPostmanJsonText(e.target.value)}
+                        placeholder='Paste Postman collection v2.1 JSON here...'
+                        className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-2.5 font-mono text-[11px] text-[var(--color-text-primary)] focus:outline-none"
                       />
+
+                      <Button
+                        variant="secondary"
+                        onClick={handleParseJson}
+                        disabled={!postmanJsonText.trim()}
+                        className="w-full text-xs"
+                      >
+                        <FileJson size={14} />
+                        <span>Parse Collection JSON</span>
+                      </Button>
                     </div>
-
-                    <div className="relative flex items-center justify-center">
-                      <div className="border-t border-[var(--color-border)] w-full" />
-                      <span className="bg-[var(--color-surface)] px-2 text-[10px] text-[var(--color-text-secondary)] uppercase">
-                        or paste JSON
-                      </span>
-                    </div>
-
-                    <textarea
-                      rows={4}
-                      value={postmanJsonText}
-                      onChange={(e) => setPostmanJsonText(e.target.value)}
-                      placeholder='Paste Postman collection v2.1 JSON here...'
-                      className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-2.5 font-mono text-[11px] text-[var(--color-text-primary)] focus:outline-none"
-                    />
-
-                    <Button
-                      variant="secondary"
-                      onClick={handleParseJson}
-                      disabled={!postmanJsonText.trim()}
-                      className="w-full text-xs"
-                    >
-                      <FileJson size={14} />
-                      <span>Parse Collection JSON</span>
-                    </Button>
                   </div>
                 )}
 
