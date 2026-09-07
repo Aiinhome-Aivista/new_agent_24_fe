@@ -27,6 +27,7 @@ const GENERAL_NAV = [
       { to: "/app/api-executor", label: "API Executor", icon: Send },
     ],
   },
+  /*
   {
     section: "AI Operations & Governance",
     items: [
@@ -35,6 +36,7 @@ const GENERAL_NAV = [
       { to: "/app/audit", label: "Audit & Guardrails", icon: ShieldCheck },
     ],
   },
+  */
   {
     section: "Admin",
     items: [
