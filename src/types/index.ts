@@ -389,7 +389,10 @@ export interface Approval {
 export interface AgentInfo {
   name: string;
   label: string;
-  last_run?: { status: string; created_at: string };
+  role?: string;
+  tier?: string;
+  model_or_tool?: string;
+  last_run?: { status: string; created_at: string; latency_ms?: number; task_type?: string };
 }
 
 export interface DashboardKpis {
