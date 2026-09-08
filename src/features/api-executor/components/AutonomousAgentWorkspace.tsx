@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Bot,
@@ -28,6 +28,60 @@ import { storyApi } from "@/services/api/storyApi";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import type { Project, Story, AcceptanceCriterion } from "@/types";
+
+function extractEndpointsFromCollection(col: any): Array<{ method: string; path: string; name: string; expected: number }> {
+  if (!col || !col.item || !Array.isArray(col.item)) return [];
+  const results: Array<{ method: string; path: string; name: string; expected: number }> = [];
+
+  const traverse = (items: any[]) => {
+    for (const item of items) {
+      if (!item) continue;
+      if (item.item && Array.isArray(item.item)) {
+        traverse(item.item);
+      } else if (item.request) {
+        const req = item.request;
+        const method = typeof req === "string" ? "GET" : (req.method || "GET").toUpperCase();
+        let path = "/";
+        if (typeof req === "string") {
+          path = req;
+        } else if (req.url) {
+          if (typeof req.url === "string") {
+            path = req.url;
+          } else if (req.url.raw) {
+            path = req.url.raw;
+          } else if (Array.isArray(req.url.path)) {
+            path = "/" + req.url.path.join("/");
+          }
+        }
+        // Clean baseUrl placeholder
+        path = path.replace(/\{\{[^}]+\}\}/g, "");
+        if (path.startsWith("http://") || path.startsWith("https://")) {
+          const parts = path.split("/", 3);
+          path = parts.length >= 4 ? "/" + parts.slice(3).join("/") : "/";
+        }
+        if (!path.startsWith("/")) path = "/" + path;
+
+        let expected = 200;
+        if (item.response && Array.isArray(item.response) && item.response.length > 0) {
+          const code = item.response[0]?.code;
+          if (code) expected = Number(code) || 200;
+        } else if (method === "POST") {
+          expected = 201;
+        }
+
+        results.push({
+          method,
+          path,
+          name: item.name || `${method} ${path}`,
+          expected
+        });
+      }
+    }
+  };
+
+  traverse(col.item);
+  return results;
+}
 
 interface AutonomousAgentWorkspaceProps {
   projects: Project[];
@@ -66,6 +120,23 @@ export function AutonomousAgentWorkspace({
   const [customCollectionJson, setCustomCollectionJson] = useState<string>("");
   const [collectionSource, setCollectionSource] = useState<"sample" | "paste">("sample");
 
+  // Dynamically parsed endpoints from selected or custom collection
+  const activeEndpoints = useMemo(() => {
+    if (collectionSource === "paste" && customCollectionJson.trim()) {
+      try {
+        const parsed = JSON.parse(customCollectionJson);
+        return extractEndpointsFromCollection(parsed);
+      } catch {
+        return [];
+      }
+    }
+    const sample = sampleCollections.find((c) => c.id === selectedSampleId);
+    if (sample?.collection) {
+      return extractEndpointsFromCollection(sample.collection);
+    }
+    return [];
+  }, [collectionSource, customCollectionJson, sampleCollections, selectedSampleId]);
+
   // Story details & acceptance criteria
   const [selectedStoryDetails, setSelectedStoryDetails] = useState<Story | null>(null);
   const [acceptanceCriteria, setAcceptanceCriteria] = useState<AcceptanceCriterion[]>([]);
@@ -81,14 +152,19 @@ export function AutonomousAgentWorkspace({
   const [almSubmitting, setAlmSubmitting] = useState(false);
   const [almSuccessResult, setAlmSuccessResult] = useState<any | null>(null);
 
-  // Load sample collections on mount
+  // Load sample/project collections when selectedProjectUuid changes
   useEffect(() => {
-    apiExecutorApi.getSampleCollections()
+    apiExecutorApi.getSampleCollections(selectedProjectUuid)
       .then((res) => {
-        setSampleCollections(res.collections || []);
+        const cols = res.collections || [];
+        setSampleCollections(cols);
+        if (cols.length > 0) {
+          const projCol = cols.find((c: any) => c.is_project_collection);
+          setSelectedSampleId(projCol ? projCol.id : cols[0].id);
+        }
       })
       .catch(() => {});
-  }, []);
+  }, [selectedProjectUuid]);
 
   // Load story acceptance criteria when selectedStoryUuid changes
   useEffect(() => {
@@ -109,6 +185,24 @@ export function AutonomousAgentWorkspace({
       })
       .finally(() => setLoadingStoryDetails(false));
   }, [selectedStoryUuid]);
+
+  // Auto-match collection when story details or collections update
+  useEffect(() => {
+    if (!selectedStoryDetails || sampleCollections.length === 0) return;
+    const storyText = `${selectedStoryDetails.title || ""} ${selectedStoryDetails.external_key || ""}`.toLowerCase();
+    
+    const matchedCol = sampleCollections.find((c: any) => {
+      const cName = (c.name || "").toLowerCase();
+      const cDesc = (c.description || "").toLowerCase();
+      if (storyText.includes("ticket") && (cName.includes("ticket") || cDesc.includes("ticket"))) return true;
+      if ((storyText.includes("user") || storyText.includes("auth") || storyText.includes("password") || storyText.includes("sbp-101")) && (cName.includes("auth") || cName.includes("user"))) return true;
+      return false;
+    });
+
+    if (matchedCol) {
+      setSelectedSampleId(matchedCol.id);
+    }
+  }, [selectedStoryDetails, sampleCollections]);
 
   // Launch Autonomous Verification Agent
   const handleLaunchAgent = async () => {
@@ -284,27 +378,29 @@ export function AutonomousAgentWorkspace({
               <span className="text-[10px] text-[var(--color-text-secondary)] font-medium">Grounding Source</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-secondary)] block mb-1">
-                  Project
-                </label>
-                <select
-                  value={selectedProjectUuid}
-                  onChange={(e) => onSelectProject(e.target.value)}
-                  className={selectStyle}
-                >
-                  {projects.map((p) => (
-                    <option key={p.uuid} value={p.uuid} className="bg-[var(--color-surface)] text-[var(--color-text-primary)]">
-                      [{p.key_code}] {p.name}
-                    </option>
-                  ))}
-                </select>
+            {/* Active Project & Story Selection */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)]/70 bg-[var(--color-surface-elevated)]/30 px-3 py-2 text-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-secondary)] shrink-0">
+                    Project
+                  </span>
+                  <span className="rounded bg-[var(--color-primary)]/10 text-[var(--color-primary)] px-1.5 py-0.5 font-mono text-[10px] font-bold shrink-0">
+                    [{projects.find((p) => p.uuid === selectedProjectUuid)?.key_code || "PRJ"}]
+                  </span>
+                  <span className="font-semibold text-[var(--color-text-primary)] truncate">
+                    {projects.find((p) => p.uuid === selectedProjectUuid)?.name || "Active Project"}
+                  </span>
+                </div>
+                <span className="flex items-center gap-1 text-[10px] font-medium text-[var(--color-text-secondary)] bg-black/5 dark:bg-white/5 px-2 py-0.5 rounded-full shrink-0">
+                  <Lock size={10} className="text-[var(--color-text-secondary)]" />
+                  Fixed Context
+                </span>
               </div>
 
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-secondary)] block mb-1">
-                  Story
+                  Target User Story
                 </label>
                 <select
                   value={selectedStoryUuid}
@@ -312,7 +408,7 @@ export function AutonomousAgentWorkspace({
                   className={selectStyle}
                 >
                   {stories.length === 0 ? (
-                    <option value="" className="bg-[var(--color-surface)] text-[var(--color-text-primary)]">No stories available</option>
+                    <option value="" className="bg-[var(--color-surface)] text-[var(--color-text-primary)]">No stories available in this project</option>
                   ) : (
                     stories.map((s) => (
                       <option key={s.uuid} value={s.uuid} className="bg-[var(--color-surface)] text-[var(--color-text-primary)]">
@@ -347,11 +443,11 @@ export function AutonomousAgentWorkspace({
                   {selectedStoryDetails.description}
                 </p>
 
-                {/* Declared Schema Notice */}
+                {/* Dynamic Story Schema Grounding */}
                 <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-2 text-[10px] text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
                   <ShieldCheck size={13} className="shrink-0 text-blue-600" />
                   <span>
-                    <strong>Declared Fields:</strong> <code className="font-mono font-bold">id, username, name, email</code> (note: <code className="font-mono font-bold">role</code> is undeclared).
+                    <strong>Grounding Schema:</strong> Validates payload structure, status codes, and constraints against {acceptanceCriteria.length} Acceptance Criteria.
                   </span>
                 </div>
 
@@ -437,11 +533,14 @@ export function AutonomousAgentWorkspace({
                     onChange={(e) => setSelectedSampleId(e.target.value)}
                     className={selectStyle}
                   >
-                    {sampleCollections.map((col) => (
-                      <option key={col.id} value={col.id} className="bg-[var(--color-surface)] text-[var(--color-text-primary)]">
-                        {col.name} ({col.collection?.item?.length || 4} endpoints)
-                      </option>
-                    ))}
+                    {sampleCollections.map((col) => {
+                      const count = extractEndpointsFromCollection(col.collection).length || col.collection?.item?.length || 0;
+                      return (
+                        <option key={col.id} value={col.id} className="bg-[var(--color-surface)] text-[var(--color-text-primary)]">
+                          {col.name} ({count} endpoint{count !== 1 ? "s" : ""})
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
@@ -449,7 +548,7 @@ export function AutonomousAgentWorkspace({
                 <div className="space-y-1.5 pt-0.5">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
-                      Target Endpoints (4)
+                      Target Endpoints ({activeEndpoints.length})
                     </span>
                     <span className="font-mono text-[9.5px] text-[var(--color-primary)] font-semibold">
                       Postman v2.1
@@ -457,42 +556,53 @@ export function AutonomousAgentWorkspace({
                   </div>
 
                   <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                    {[
-                      { method: "POST", path: "/api/login", name: "1. Login - Valid Credentials", expected: 200 },
-                      { method: "GET", path: "/api/user", name: "2. Get User Profile - Authenticated", expected: 200 },
-                      { method: "POST", path: "/api/login", name: "3. Login - Invalid Credentials", expected: 401 },
-                      { method: "GET", path: "/api/user", name: "4. Get User Profile - Missing Authorization", expected: 401 },
-                    ].map((ep, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center justify-between rounded-lg border border-[var(--color-border)]/70 bg-[var(--color-surface-elevated)]/20 p-2 text-xs"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span
-                            className={`rounded px-1.5 py-0.5 font-mono text-[9.5px] font-bold ${
-                              ep.method === "POST" ? "bg-blue-500/10 text-blue-600" : "bg-emerald-500/10 text-emerald-600"
-                            }`}
-                          >
-                            {ep.method}
-                          </span>
-                          <span className="font-mono text-[11px] text-[var(--color-text-primary)] truncate">
-                            {ep.path}
-                          </span>
-                          <span className="text-[10px] text-[var(--color-text-secondary)] truncate">
-                            ({ep.name.split("-")[1]?.trim() || ep.name})
+                    {activeEndpoints.length === 0 ? (
+                      <div className="p-3 text-center text-xs text-[var(--color-text-secondary)]">
+                        No endpoints found in this collection.
+                      </div>
+                    ) : (
+                      activeEndpoints.map((ep, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center justify-between rounded-lg border border-[var(--color-border)]/70 bg-[var(--color-surface-elevated)]/20 p-2 text-xs"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span
+                              className={`rounded px-1.5 py-0.5 font-mono text-[9.5px] font-bold ${
+                                ep.method === "POST"
+                                  ? "bg-blue-500/10 text-blue-600"
+                                  : ep.method === "DELETE"
+                                  ? "bg-rose-500/10 text-rose-600"
+                                  : ep.method === "PUT" || ep.method === "PATCH"
+                                  ? "bg-amber-500/10 text-amber-600"
+                                  : "bg-emerald-500/10 text-emerald-600"
+                              }`}
+                            >
+                              {ep.method}
+                            </span>
+                            <span className="font-mono text-[11px] text-[var(--color-text-primary)] truncate">
+                              {ep.path}
+                            </span>
+                            <span className="text-[10px] text-[var(--color-text-secondary)] truncate">
+                              ({ep.name.split("-")[1]?.trim() || ep.name})
+                            </span>
+                          </div>
+                          <span className="rounded bg-black/5 dark:bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-secondary)] shrink-0">
+                            HTTP {ep.expected}
                           </span>
                         </div>
-                        <span className="rounded bg-black/5 dark:bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-secondary)] shrink-0">
-                          HTTP {ep.expected}
-                        </span>
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
 
-                  <div className="text-[10.5px] text-[var(--color-text-secondary)] flex items-center gap-1.5 pt-1">
-                    <Zap size={11} className="text-[var(--color-primary)] shrink-0" />
-                    <span>Chaining: Token extracted from Login is automatically passed to User Profile.</span>
-                  </div>
+                  {activeEndpoints.length > 0 && (
+                    <div className="text-[10.5px] text-[var(--color-text-secondary)] flex items-center gap-1.5 pt-1">
+                      <Zap size={11} className="text-[var(--color-primary)] shrink-0" />
+                      <span>
+                        Chaining: Dynamic request execution across {activeEndpoints.length} endpoint{activeEndpoints.length > 1 ? "s" : ""}.
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (

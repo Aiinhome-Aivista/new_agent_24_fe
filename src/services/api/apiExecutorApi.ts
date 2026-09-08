@@ -47,8 +47,8 @@ export const apiExecutorApi = {
   }): Promise<any> =>
     unwrap(apiClient.post("/api-executor/autonomous-run", payload)),
 
-  getSampleCollections: (): Promise<{ collections: Array<{ id: string; name: string; description: string; collection: any }> }> =>
-    unwrap(apiClient.get("/api-executor/sample-collections")),
+  getSampleCollections: (projectUuid?: string): Promise<{ collections: Array<{ id: string; name: string; description: string; collection: any; is_project_collection?: boolean }> }> =>
+    unwrap(apiClient.get("/api-executor/sample-collections", { params: projectUuid ? { project_uuid: projectUuid } : {} })),
 
   getCachedHosts: (): Promise<{ hosts: Array<{ url: string; name: string; last_seen?: string; status?: string }> }> =>
     unwrap(apiClient.get("/api-executor/cached-hosts")),
