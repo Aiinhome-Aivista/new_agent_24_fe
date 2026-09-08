@@ -26,16 +26,16 @@ const GENERAL_NAV = [
       { to: "/app/projects", label: "Projects", icon: FolderKanban },
     ],
   },
-  /*
+  
   {
     section: "AI Operations & Governance",
     items: [
       { to: "/app/agents", label: "Agent Monitor", icon: Bot },
       // { to: "/app/approvals", label: "Approval Center", icon: ShieldCheck },
-      { to: "/app/audit", label: "Audit & Guardrails", icon: ShieldCheck },
+      // { to: "/app/audit", label: "Audit & Guardrails", icon: ShieldCheck },
     ],
   },
-  */
+  
   {
     section: "Admin",
     items: [
