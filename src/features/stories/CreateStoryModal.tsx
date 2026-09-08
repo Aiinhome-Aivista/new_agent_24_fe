@@ -21,6 +21,7 @@ import {
   Code2,
   Layers,
   Edit3,
+  Loader2,
 } from "lucide-react";
 
 interface Props {
@@ -59,6 +60,7 @@ export function CreateStoryModal({
   // Story Document Upload State
   const [storyFile, setStoryFile] = useState<File | null>(null);
   const [storyFileContent, setStoryFileContent] = useState<string>("");
+  const [parsingDoc, setParsingDoc] = useState(false);
   const storyFileInputRef = useRef<HTMLInputElement>(null);
 
   // Postman Collection Upload State
@@ -219,14 +221,60 @@ export function CreateStoryModal({
     }
   };
 
-  // Handle Story File Upload
-  const handleStoryFileUpload = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = (e.target?.result as string) || "";
-      parseAndApplyStoryContent(file, text);
-    };
-    reader.readAsText(file);
+  // Handle Story File Upload (Supports .docx tables/paragraphs, .pdf, .md, .txt, .json with AI and table extraction)
+  const handleStoryFileUpload = async (file: File) => {
+    setParsingDoc(true);
+    setStoryFile(file);
+
+    try {
+      // Call backend document extractor (which leverages python-docx table/paragraph parsing and AI)
+      const res = await storyApi.parseDocument(file);
+      if (res) {
+        if (res.title) setTitle(res.title);
+        if (res.external_key) setExternalKey(res.external_key);
+        if (res.sprint) setSprint(res.sprint);
+        if (res.description) setDescription(res.description);
+        if (res.acceptance_criteria && res.acceptance_criteria.length > 0) {
+          setAcs(res.acceptance_criteria);
+        } else {
+          setAcs([
+            { ac_key: "AC-1", text: "" },
+            { ac_key: "AC-2", text: "" },
+          ]);
+        }
+        notify(
+          "success",
+          `Extracted ${res.title || file.name} (${res.extracted_count || res.acceptance_criteria?.length || 0} Acceptance Criteria)`
+        );
+        setStep("form");
+        return;
+      }
+    } catch (err: any) {
+      console.warn("Backend document extraction failed, attempting client-side fallback:", err);
+
+      // Only attempt readAsText on actual text files, NEVER on binary docx/pdf
+      if (!file.name.endsWith(".docx") && !file.name.endsWith(".pdf")) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const text = (e.target?.result as string) || "";
+          parseAndApplyStoryContent(file, text);
+        };
+        reader.readAsText(file);
+        return;
+      } else {
+        // Safe clean fallback title for binary file if offline
+        const cleanName = file.name
+          .replace(/\.[^.]+$/, "")
+          .replace(/\(\d+\)/g, "")
+          .replace(/[-_]+/g, " ")
+          .trim();
+        setTitle(cleanName);
+        notify("warning", "Document uploaded. Please review story details and add acceptance criteria.");
+        setStep("form");
+      }
+    } finally {
+      setParsingDoc(false);
+    }
   };
 
   // Handle Postman Collection File Upload (.json, .bru)
@@ -460,28 +508,49 @@ export function CreateStoryModal({
                   const f = e.dataTransfer.files?.[0];
                   if (f) handleStoryFileUpload(f);
                 }}
-                onClick={() => storyFileInputRef.current?.click()}
+                onClick={() => !parsingDoc && storyFileInputRef.current?.click()}
                 className={`flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-dashed cursor-pointer transition-all duration-200 text-center ${
-                  isDragging
+                  parsingDoc
+                    ? "border-[var(--color-primary)] bg-[var(--color-primary)]/5 cursor-wait"
+                    : isDragging
                     ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 scale-[1.01]"
                     : "border-[var(--color-border)] hover:border-[var(--color-primary)] bg-[var(--color-surface-elevated)]/40 hover:bg-[var(--color-surface-elevated)]/70 shadow-[var(--shadow-neu-inset)]"
                 }`}
               >
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--color-primary)]/15 text-[var(--color-primary)] mb-3 shadow-inner">
-                  <UploadCloud size={32} />
-                </div>
-                <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-1">
-                  Click to browse or drag & drop Story File
-                </h3>
-                <p className="text-xs text-[var(--color-text-secondary)] max-w-sm mb-3">
-                  Upload markdown documents (e.g. <span className="font-mono text-[var(--color-primary)]">SBP-101-Change-Password-Story.md</span>), Jira export tickets, or sprint files
-                </p>
-                <div className="flex items-center gap-2 text-[11px] text-[var(--color-text-secondary)] font-mono">
-                  <span className="rounded bg-[var(--color-surface)] px-2 py-0.5 border border-[var(--color-border)]">.MD</span>
-                  <span className="rounded bg-[var(--color-surface)] px-2 py-0.5 border border-[var(--color-border)]">.TXT</span>
-                  <span className="rounded bg-[var(--color-surface)] px-2 py-0.5 border border-[var(--color-border)]">.JSON</span>
-                  <span className="rounded bg-[var(--color-surface)] px-2 py-0.5 border border-[var(--color-border)]">.DOCX</span>
-                </div>
+                {parsingDoc ? (
+                  <div className="flex flex-col items-center justify-center py-3 space-y-3">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--color-primary)]/15 text-[var(--color-primary)] shadow-inner">
+                      <Loader2 size={32} className="animate-spin text-[var(--color-primary)]" />
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">
+                        Analyzing document & extracting acceptance criteria...
+                      </h3>
+                      <p className="text-xs text-[var(--color-text-secondary)] max-w-sm">
+                        Parsing headings, tables, deliverables, and requirements via AI story extractor...
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--color-primary)]/15 text-[var(--color-primary)] mb-3 shadow-inner">
+                      <UploadCloud size={32} />
+                    </div>
+                    <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-1">
+                      Click to browse or drag & drop Story File
+                    </h3>
+                    <p className="text-xs text-[var(--color-text-secondary)] max-w-sm mb-3">
+                      Upload Word documents (<span className="font-mono text-[var(--color-primary)] font-semibold">.docx</span>), requirements letters, markdown, or Jira exports
+                    </p>
+                    <div className="flex items-center gap-2 text-[11px] text-[var(--color-text-secondary)] font-mono">
+                      <span className="rounded bg-[var(--color-surface)] px-2 py-0.5 border border-[var(--color-border)] font-bold text-[var(--color-primary)]">.DOCX</span>
+                      <span className="rounded bg-[var(--color-surface)] px-2 py-0.5 border border-[var(--color-border)]">.MD</span>
+                      <span className="rounded bg-[var(--color-surface)] px-2 py-0.5 border border-[var(--color-border)]">.TXT</span>
+                      <span className="rounded bg-[var(--color-surface)] px-2 py-0.5 border border-[var(--color-border)]">.JSON</span>
+                      <span className="rounded bg-[var(--color-surface)] px-2 py-0.5 border border-[var(--color-border)]">.PDF</span>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Alternative Action: Manual Entry */}
@@ -553,7 +622,11 @@ export function CreateStoryModal({
                     <div>
                       <div className="flex items-center gap-2">
                         <p className="font-semibold text-[var(--color-text-primary)]">{storyFile.name}</p>
-                        <span className="rounded bg-[var(--color-primary)]/15 text-[var(--color-primary)] px-1.5 py-0.2 font-semibold text-[10px]">
+                        <span className={`rounded px-1.5 py-0.2 font-semibold text-[10px] ${
+                          acs.filter(a => a.text.trim()).length > 0
+                            ? "bg-emerald-500/15 text-emerald-600 border border-emerald-500/30"
+                            : "bg-amber-500/15 text-amber-600 border border-amber-500/30"
+                        }`}>
                           {acs.filter(a => a.text.trim()).length} ACs Extracted
                         </span>
                       </div>

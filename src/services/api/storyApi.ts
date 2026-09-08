@@ -36,5 +36,24 @@ export const storyApi = {
     invalidateProjectCache();
     return unwrap<{ message: string; uuid: string }>(apiClient.delete(`/stories/${uuid}`));
   },
+
+  parseDocument: (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return unwrap<{
+      title: string;
+      external_key: string;
+      sprint: string;
+      description: string;
+      acceptance_criteria: Array<{ ac_key: string; text: string }>;
+      extracted_count: number;
+      source_type: string;
+      raw_text_length: number;
+    }>(
+      apiClient.post("/stories/parse-document", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+    );
+  },
 };
 
