@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { storyApi } from "@/services/api/storyApi";
 import { projectApi } from "@/services/api/projectApi";
 import { knowledgeApi } from "@/services/api/knowledgeApi";
+import { jiraApi, type JiraStatusResponse, type JiraIssueSummary } from "@/services/api/jiraApi";
 import type { Project } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -22,6 +23,11 @@ import {
   Layers,
   Edit3,
   Loader2,
+  Globe,
+  RefreshCw,
+  Search,
+  ExternalLink,
+  Check,
 } from "lucide-react";
 
 interface Props {
@@ -43,6 +49,7 @@ export function CreateStoryModal({
 
   // Wizard Step: "upload" -> "form"
   const [step, setStep] = useState<"upload" | "form">("upload");
+  const [activeTab, setActiveTab] = useState<"jira" | "file">("jira");
   const [isDragging, setIsDragging] = useState(false);
 
   const [projectUuid, setProjectUuid] = useState(
@@ -56,6 +63,15 @@ export function CreateStoryModal({
     { ac_key: "AC-1", text: "" },
     { ac_key: "AC-2", text: "" },
   ]);
+
+  // Jira Integration State
+  const [jiraStatus, setJiraStatus] = useState<JiraStatusResponse | null>(null);
+  const [jiraIssues, setJiraIssues] = useState<JiraIssueSummary[]>([]);
+  const [jiraLoading, setJiraLoading] = useState(false);
+  const [fetchingJiraStory, setFetchingJiraStory] = useState(false);
+  const [fetchingStoryKey, setFetchingStoryKey] = useState<string | null>(null);
+  const [jiraSearch, setJiraSearch] = useState("");
+  const [sourceJiraKey, setSourceJiraKey] = useState<string | null>(null);
 
   // Story Document Upload State
   const [storyFile, setStoryFile] = useState<File | null>(null);
@@ -80,20 +96,80 @@ export function CreateStoryModal({
     projects.find((p) => p.uuid === defaultProjectUuid) ||
     projects[0];
 
+  // Load Jira Connection & Recent Issues
+  const loadJiraData = async () => {
+    setJiraLoading(true);
+    try {
+      const status = await jiraApi.getStatus();
+      setJiraStatus(status);
+      if (status?.connected) {
+        const issuesRes = await jiraApi.listStories();
+        setJiraIssues(issuesRes?.issues || []);
+      }
+    } catch (err) {
+      console.warn("Jira status check failed", err);
+    } finally {
+      setJiraLoading(false);
+    }
+  };
+
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
       setStep("upload");
+      setActiveTab("jira");
       setStoryFile(null);
       setStoryFileContent("");
       setPostmanFile(null);
       setPostmanDetails(null);
+      setSourceJiraKey(null);
       const targetUuid = defaultProjectUuid || (projects.length > 0 ? projects[0].uuid : "");
       if (targetUuid) {
         setProjectUuid(targetUuid);
       }
+      loadJiraData();
     }
   }, [isOpen]);
+
+  // Handle fetching a story directly from Jira
+  const handleFetchJiraStory = async (keyToFetch: string) => {
+    const key = (keyToFetch || "").trim().toUpperCase();
+    if (!key) {
+      notify("error", "Please select or enter a Jira issue key (e.g. SCRUM-40)");
+      return;
+    }
+
+    setFetchingStoryKey(key);
+    setFetchingJiraStory(true);
+    try {
+      const res = await jiraApi.fetchStory(key);
+      if (res) {
+        if (res.title) setTitle(res.title);
+        if (res.external_key) setExternalKey(res.external_key);
+        if (res.sprint) setSprint(res.sprint || "Sprint 1");
+        if (res.description) setDescription(res.description);
+        if (res.acceptance_criteria && res.acceptance_criteria.length > 0) {
+          setAcs(res.acceptance_criteria);
+        } else {
+          setAcs([
+            { ac_key: "AC-1", text: "" },
+            { ac_key: "AC-2", text: "" },
+          ]);
+        }
+        setSourceJiraKey(key);
+        notify(
+          "success",
+          `Extracted ${key}: ${res.title} (${res.acceptance_criteria?.length || 0} Acceptance Criteria extracted)`
+        );
+        setStep("form");
+      }
+    } catch (err: any) {
+      notify("error", err?.message || `Failed to fetch story ${key} from Jira`);
+    } finally {
+      setFetchingJiraStory(false);
+      setFetchingStoryKey(null);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -369,7 +445,7 @@ export function CreateStoryModal({
     setLoading(true);
 
     try {
-      // 1. Create the User Story
+      // 1. Create the User Story and all Acceptance Criteria in MySQL Database
       await storyApi.create({
         project_uuid: projectUuid,
         external_key: externalKey.trim() || undefined,
@@ -379,17 +455,33 @@ export function CreateStoryModal({
         acceptance_criteria: filteredAcs,
       });
 
-      // 2. Upload Story Document to Knowledge Base if present
-      if (storyFile) {
-        try {
+      // 2. Ingest Full Story Document into Knowledge Base & RAG Vector/Chunks Store
+      try {
+        if (storyFile) {
           const fd = new FormData();
           fd.append("file", storyFile);
           fd.append("doc_type", "user_story");
           fd.append("version", sprint.trim() || "v1");
           await knowledgeApi.upload(projectUuid, fd);
-        } catch (err) {
-          console.warn("Story file knowledge upload error", err);
+        } else {
+          // Auto-generate structured markdown specification for Jira/manual stories
+          const acMarkdown = filteredAcs
+            .map((a) => `### ${a.ac_key}\n${a.text}`)
+            .join("\n\n");
+          const docContent = `# [${externalKey.trim() || "STORY"}] ${title.trim()}\n\n## Sprint\n${sprint.trim()}\n\n## Description\n${description.trim()}\n\n## Acceptance Criteria\n${acMarkdown}`;
+          
+          const docBlob = new Blob([docContent], { type: "text/markdown" });
+          const docFile = new File([docBlob], `${externalKey.trim() || "story"}.md`, {
+            type: "text/markdown",
+          });
+          const fd = new FormData();
+          fd.append("file", docFile);
+          fd.append("doc_type", "user_story");
+          fd.append("version", sprint.trim() || "v1");
+          await knowledgeApi.upload(projectUuid, fd);
         }
+      } catch (kErr) {
+        console.warn("Knowledge base document ingestion:", kErr);
       }
 
       // 3. Upload Postman Collection if attached
@@ -400,7 +492,7 @@ export function CreateStoryModal({
       }
 
       const postmanMsg = postmanFile ? " & Postman collection attached" : "";
-      notify("success", `User Story saved successfully${postmanMsg}!`);
+      notify("success", `User Story & ${filteredAcs.length} Acceptance Criteria saved to database${postmanMsg}!`);
       onSuccess();
       onClose();
     } catch (err) {
@@ -415,7 +507,7 @@ export function CreateStoryModal({
       <div className="w-full max-w-2xl max-h-[90vh] rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl flex flex-col overflow-hidden">
         
         {/* ========================================================================= */}
-        {/* STEP 1: UPLOAD STORY DOCUMENT VIEW                                        */}
+        {/* STEP 1: IMPORT OR UPLOAD USER STORY VIEW                                   */}
         {/* ========================================================================= */}
         {step === "upload" ? (
           <div className="flex flex-col flex-1 overflow-hidden">
@@ -423,14 +515,14 @@ export function CreateStoryModal({
             <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-4 bg-[var(--color-surface-elevated)]/50 shrink-0">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-primary)]/10 text-[var(--color-primary)] shadow-sm">
-                  <UploadCloud size={22} />
+                  <BookPlus size={22} />
                 </div>
                 <div>
                   <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
-                    Upload User Story Document
+                    Import or Create User Story
                   </h2>
                   <p className="text-xs text-[var(--color-text-secondary)]">
-                    Upload your story file (.md, .txt, .json) to auto-extract Acceptance Criteria & metadata
+                    Fetch directly from Jira Cloud, upload requirements document, or enter manually
                   </p>
                 </div>
               </div>
@@ -444,12 +536,12 @@ export function CreateStoryModal({
             </div>
 
             {/* Body */}
-            <div className="p-6 space-y-5 flex-1 overflow-y-auto">
+            <div className="p-6 space-y-4 flex-1 overflow-y-auto">
               {/* Target Project: Show badge if already in a project, or dropdown if multiple projects */}
               {isProjectLocked ? (
                 activeProject && (
                   <div className="flex items-center gap-2 rounded-xl bg-[var(--color-surface-elevated)] border border-[var(--color-border)] px-3.5 py-2 text-xs">
-                    <span className="text-[var(--color-text-secondary)] font-medium">Project:</span>
+                    <span className="text-[var(--color-text-secondary)] font-medium">Target Project:</span>
                     <span className="font-semibold text-[var(--color-primary)] font-mono">[{activeProject.key_code}]</span>
                     <span className="font-semibold text-[var(--color-text-primary)]">{activeProject.name}</span>
                   </div>
@@ -474,84 +566,305 @@ export function CreateStoryModal({
                 </div>
               )}
 
-              {/* Large Interactive Upload Dropzone */}
-              <input
-                ref={storyFileInputRef}
-                type="file"
-                accept=".md,.txt,.json,.docx"
-                onClick={(e) => {
-                  (e.target as HTMLInputElement).value = "";
-                }}
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleStoryFileUpload(f);
-                }}
-                className="hidden"
-                id="story-file-upload-step1"
-              />
-
-              <div
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsDragging(true);
-                }}
-                onDragLeave={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsDragging(false);
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsDragging(false);
-                  const f = e.dataTransfer.files?.[0];
-                  if (f) handleStoryFileUpload(f);
-                }}
-                onClick={() => !parsingDoc && storyFileInputRef.current?.click()}
-                className={`flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-dashed cursor-pointer transition-all duration-200 text-center ${
-                  parsingDoc
-                    ? "border-[var(--color-primary)] bg-[var(--color-primary)]/5 cursor-wait"
-                    : isDragging
-                    ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 scale-[1.01]"
-                    : "border-[var(--color-border)] hover:border-[var(--color-primary)] bg-[var(--color-surface-elevated)]/40 hover:bg-[var(--color-surface-elevated)]/70 shadow-[var(--shadow-neu-inset)]"
-                }`}
-              >
-                {parsingDoc ? (
-                  <div className="flex flex-col items-center justify-center py-3 space-y-3">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--color-primary)]/15 text-[var(--color-primary)] shadow-inner">
-                      <Loader2 size={32} className="animate-spin text-[var(--color-primary)]" />
-                    </div>
-                    <div className="space-y-1">
-                      <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">
-                        Analyzing document & extracting acceptance criteria...
-                      </h3>
-                      <p className="text-xs text-[var(--color-text-secondary)] max-w-sm">
-                        Parsing headings, tables, deliverables, and requirements via AI story extractor...
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--color-primary)]/15 text-[var(--color-primary)] mb-3 shadow-inner">
-                      <UploadCloud size={32} />
-                    </div>
-                    <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-1">
-                      Click to browse or drag & drop Story File
-                    </h3>
-                    <p className="text-xs text-[var(--color-text-secondary)] max-w-sm mb-3">
-                      Upload Word documents (<span className="font-mono text-[var(--color-primary)] font-semibold">.docx</span>), requirements letters, markdown, or Jira exports
-                    </p>
-                    <div className="flex items-center gap-2 text-[11px] text-[var(--color-text-secondary)] font-mono">
-                      <span className="rounded bg-[var(--color-surface)] px-2 py-0.5 border border-[var(--color-border)] font-bold text-[var(--color-primary)]">.DOCX</span>
-                      <span className="rounded bg-[var(--color-surface)] px-2 py-0.5 border border-[var(--color-border)]">.MD</span>
-                      <span className="rounded bg-[var(--color-surface)] px-2 py-0.5 border border-[var(--color-border)]">.TXT</span>
-                      <span className="rounded bg-[var(--color-surface)] px-2 py-0.5 border border-[var(--color-border)]">.JSON</span>
-                      <span className="rounded bg-[var(--color-surface)] px-2 py-0.5 border border-[var(--color-border)]">.PDF</span>
-                    </div>
-                  </>
-                )}
+              {/* Source Mode Tabs */}
+              <div className="flex items-center gap-2 p-1 bg-[var(--color-surface-elevated)] rounded-xl border border-[var(--color-border)]">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("jira")}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${
+                    activeTab === "jira"
+                      ? "bg-[var(--color-primary)] text-white shadow-sm"
+                      : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                  }`}
+                >
+                  <Globe size={15} />
+                  <span>Import from Jira Cloud</span>
+                  {jiraStatus?.connected && (
+                    <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("file")}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${
+                    activeTab === "file"
+                      ? "bg-[var(--color-primary)] text-white shadow-sm"
+                      : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                  }`}
+                >
+                  <UploadCloud size={15} />
+                  <span>Upload Document (.docx, .md, .pdf)</span>
+                </button>
               </div>
+
+              {/* TAB 1: JIRA CLOUD IMPORT */}
+              {activeTab === "jira" && (
+                <div className="space-y-3.5">
+                  {/* Jira Connection Status Card */}
+                  <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)]/60 p-3.5">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className={`h-2.5 w-2.5 rounded-full ${jiraStatus?.connected ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" : "bg-amber-500"}`} />
+                        <span className="text-xs font-bold text-[var(--color-text-primary)]">
+                          {jiraStatus?.connected
+                            ? `Connected to Jira Cloud (${jiraStatus.project_key || "SCRUM"})`
+                            : jiraLoading
+                            ? "Connecting to Jira Cloud..."
+                            : "Jira Cloud Not Connected"}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={loadJiraData}
+                        disabled={jiraLoading}
+                        className="text-[11px] text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] flex items-center gap-1 transition-colors"
+                        title="Refresh Jira connection"
+                      >
+                        <RefreshCw size={12} className={jiraLoading ? "animate-spin" : ""} />
+                        <span>Refresh</span>
+                      </button>
+                    </div>
+
+                    {jiraStatus?.connected ? (
+                      <div className="text-[11px] text-[var(--color-text-secondary)] flex items-center justify-between">
+                        <span>
+                          Account: <strong className="text-[var(--color-text-primary)]">{jiraStatus.display_name || jiraStatus.email}</strong> ({jiraStatus.email})
+                        </span>
+                        <span className="font-mono text-[10px] text-[var(--color-primary)]">
+                          {jiraStatus.base_url?.replace("https://", "")}
+                        </span>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-amber-500">
+                        {jiraStatus?.message || "Set JIRA_BASE_URL, JIRA_USER_EMAIL, and JIRA_API_TOKEN in backend .env to connect."}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Extraction In-Progress Overlay */}
+                  {fetchingJiraStory && fetchingStoryKey ? (
+                    <div className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-dashed border-[var(--color-primary)] bg-[var(--color-primary)]/5 shadow-inner space-y-3 text-center animate-in fade-in duration-200">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--color-primary)]/15 text-[var(--color-primary)] shadow-sm">
+                        <Loader2 size={32} className="animate-spin text-[var(--color-primary)]" />
+                      </div>
+                      <div className="space-y-1">
+                        <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">
+                          Importing & extracting Acceptance Criteria for [{fetchingStoryKey}]...
+                        </h3>
+                        <p className="text-xs text-[var(--color-text-secondary)] max-w-sm">
+                          Fetching ADF content from Jira Cloud, converting formatting, and extracting structured TDD criteria...
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Unified Live Filter Bar (Acts as Filter, not immediate fetch) */}
+                      <div className="relative">
+                        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-secondary)]" />
+                        <Input
+                          placeholder="Filter stories by key or summary (e.g. SCRUM-40, ticket)..."
+                          value={jiraSearch}
+                          onChange={(e) => setJiraSearch(e.target.value)}
+                          className="pl-9 pr-8 text-xs font-medium"
+                        />
+                        {jiraSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setJiraSearch("")}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                          >
+                            <X size={13} />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Jira Stories Picklist */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider">
+                            Available User Stories & Features ({
+                              jiraIssues.filter((issue) =>
+                                jiraSearch.trim()
+                                  ? issue.key.toLowerCase().includes(jiraSearch.trim().toLowerCase()) ||
+                                    issue.summary.toLowerCase().includes(jiraSearch.trim().toLowerCase()) ||
+                                    issue.issue_type.toLowerCase().includes(jiraSearch.trim().toLowerCase())
+                                  : true
+                              ).length
+                            })
+                          </span>
+                        </div>
+
+                        <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                          {jiraLoading ? (
+                            <div className="flex items-center justify-center py-8 gap-2 text-xs text-[var(--color-text-secondary)]">
+                              <Loader2 size={16} className="animate-spin text-[var(--color-primary)]" />
+                              <span>Loading Jira stories & features...</span>
+                            </div>
+                          ) : (
+                            <>
+                              {jiraIssues
+                                .filter((issue) =>
+                                  jiraSearch.trim()
+                                    ? issue.key.toLowerCase().includes(jiraSearch.trim().toLowerCase()) ||
+                                      issue.summary.toLowerCase().includes(jiraSearch.trim().toLowerCase()) ||
+                                      issue.issue_type.toLowerCase().includes(jiraSearch.trim().toLowerCase())
+                                    : true
+                                )
+                                .map((issue) => (
+                                  <div
+                                    key={issue.key}
+                                    className="group flex items-center justify-between p-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-elevated)] hover:border-[var(--color-primary)]/60 transition-all shadow-[var(--shadow-neu-inset)]"
+                                  >
+                                    <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-3">
+                                      <span className="font-mono text-xs font-bold text-[var(--color-primary)] shrink-0">
+                                        {issue.key}
+                                      </span>
+                                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase shrink-0 ${
+                                        issue.issue_type === "Feature"
+                                          ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30"
+                                          : issue.issue_type === "Task"
+                                          ? "bg-blue-500/15 text-blue-400 border border-blue-500/30"
+                                          : "bg-indigo-500/15 text-indigo-400 border border-indigo-500/30"
+                                      }`}>
+                                        {issue.issue_type}
+                                      </span>
+                                      <span className="text-xs text-[var(--color-text-primary)] truncate font-medium">
+                                        {issue.summary}
+                                      </span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleFetchJiraStory(issue.key)}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white text-xs font-semibold shadow-sm transition-all hover:scale-105 active:scale-95 shrink-0"
+                                    >
+                                      <span>Import</span>
+                                      <ArrowRight size={13} />
+                                    </button>
+                                  </div>
+                                ))}
+
+                              {/* Allow direct import only when no list items match or user typed a specific Jira key like SCRUM-99 */}
+                              {jiraSearch.trim() &&
+                                (jiraIssues.filter((issue) =>
+                                  issue.key.toLowerCase().includes(jiraSearch.trim().toLowerCase()) ||
+                                  issue.summary.toLowerCase().includes(jiraSearch.trim().toLowerCase()) ||
+                                  issue.issue_type.toLowerCase().includes(jiraSearch.trim().toLowerCase())
+                                ).length === 0 ||
+                                (/^[A-Za-z0-9]+-\d+$/i.test(jiraSearch.trim()) &&
+                                  !jiraIssues.some(
+                                    (i) => i.key.toLowerCase() === jiraSearch.trim().toLowerCase()
+                                  ))) && (
+                                  <div className="flex items-center justify-between p-3 rounded-xl border border-dashed border-[var(--color-primary)]/50 bg-[var(--color-primary)]/5">
+                                    <div className="text-xs text-[var(--color-text-primary)]">
+                                      Import story <strong className="font-mono text-[var(--color-primary)]">[{jiraSearch.trim().toUpperCase()}]</strong> directly from Jira
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleFetchJiraStory(jiraSearch.trim().toUpperCase())}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white text-xs font-semibold shadow-sm transition-all hover:scale-105 active:scale-95 shrink-0"
+                                    >
+                                      <span>Import {jiraSearch.trim().toUpperCase()}</span>
+                                      <ArrowRight size={13} />
+                                    </button>
+                                  </div>
+                                )}
+
+                              {jiraIssues.length === 0 && !jiraSearch.trim() && (
+                                <div className="text-center py-6 text-xs text-[var(--color-text-secondary)] border border-dashed border-[var(--color-border)] rounded-xl">
+                                  No stories or features found in Jira project. Type an issue key above to import directly.
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 2: FILE UPLOAD DROPZONE */}
+              {activeTab === "file" && (
+                <div>
+                  <input
+                    ref={storyFileInputRef}
+                    type="file"
+                    accept=".md,.txt,.json,.docx,.pdf"
+                    onClick={(e) => {
+                      (e.target as HTMLInputElement).value = "";
+                    }}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleStoryFileUpload(f);
+                    }}
+                    className="hidden"
+                    id="story-file-upload-step1"
+                  />
+
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDragging(true);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDragging(false);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDragging(false);
+                      const f = e.dataTransfer.files?.[0];
+                      if (f) handleStoryFileUpload(f);
+                    }}
+                    onClick={() => !parsingDoc && storyFileInputRef.current?.click()}
+                    className={`flex flex-col items-center justify-center p-7 rounded-2xl border-2 border-dashed cursor-pointer transition-all duration-200 text-center ${
+                      parsingDoc
+                        ? "border-[var(--color-primary)] bg-[var(--color-primary)]/5 cursor-wait"
+                        : isDragging
+                        ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 scale-[1.01]"
+                        : "border-[var(--color-border)] hover:border-[var(--color-primary)] bg-[var(--color-surface-elevated)]/40 hover:bg-[var(--color-surface-elevated)]/70 shadow-[var(--shadow-neu-inset)]"
+                    }`}
+                  >
+                    {parsingDoc ? (
+                      <div className="flex flex-col items-center justify-center py-3 space-y-3">
+                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--color-primary)]/15 text-[var(--color-primary)] shadow-inner">
+                          <Loader2 size={32} className="animate-spin text-[var(--color-primary)]" />
+                        </div>
+                        <div className="space-y-1">
+                          <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">
+                            Analyzing document & extracting acceptance criteria...
+                          </h3>
+                          <p className="text-xs text-[var(--color-text-secondary)] max-w-sm">
+                            Parsing headings, tables, deliverables, and requirements via AI story extractor...
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--color-primary)]/15 text-[var(--color-primary)] mb-2.5 shadow-inner">
+                          <UploadCloud size={28} />
+                        </div>
+                        <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-1">
+                          Click to browse or drag & drop Story File
+                        </h3>
+                        <p className="text-xs text-[var(--color-text-secondary)] max-w-sm mb-3">
+                          Upload Word documents (<span className="font-mono text-[var(--color-primary)] font-semibold">.docx</span>), requirements letters, markdown, or PDF
+                        </p>
+                        <div className="flex items-center gap-2 text-[11px] text-[var(--color-text-secondary)] font-mono">
+                          <span className="rounded bg-[var(--color-surface)] px-2 py-0.5 border border-[var(--color-border)] font-bold text-[var(--color-primary)]">.DOCX</span>
+                          <span className="rounded bg-[var(--color-surface)] px-2 py-0.5 border border-[var(--color-border)]">.MD</span>
+                          <span className="rounded bg-[var(--color-surface)] px-2 py-0.5 border border-[var(--color-border)]">.TXT</span>
+                          <span className="rounded bg-[var(--color-surface)] px-2 py-0.5 border border-[var(--color-border)]">.JSON</span>
+                          <span className="rounded bg-[var(--color-surface)] px-2 py-0.5 border border-[var(--color-border)]">.PDF</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Alternative Action: Manual Entry */}
               <div className="relative flex py-1 items-center">
@@ -565,11 +878,11 @@ export function CreateStoryModal({
               <button
                 type="button"
                 onClick={() => setStep("form")}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-elevated)] text-xs font-medium text-[var(--color-text-primary)] transition-colors group"
+                className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-elevated)] text-xs font-medium text-[var(--color-text-primary)] transition-colors group"
               >
-                <Edit3 size={15} className="text-[var(--color-text-secondary)] group-hover:text-[var(--color-primary)]" />
-                <span>Write user story manually without a file</span>
-                <ArrowRight size={14} className="text-[var(--color-text-secondary)] group-hover:translate-x-0.5 transition-transform" />
+                <Edit3 size={14} className="text-[var(--color-text-secondary)] group-hover:text-[var(--color-primary)]" />
+                <span>Write user story manually without Jira or file</span>
+                <ArrowRight size={13} className="text-[var(--color-text-secondary)] group-hover:translate-x-0.5 transition-transform" />
               </button>
             </div>
 
@@ -582,7 +895,7 @@ export function CreateStoryModal({
           </div>
         ) : (
           /* ========================================================================= */
-          /* STEP 2: REVIEW & SAVE STORY FORM (NO REDUNDANT UPLOAD BOX)                */
+          /* STEP 2: REVIEW & SAVE STORY FORM                                          */
           /* ========================================================================= */
           <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden min-h-0">
             {/* Header */}
@@ -611,6 +924,38 @@ export function CreateStoryModal({
 
             {/* Scrollable Form Body */}
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+              
+              {/* Jira Source Pill Banner */}
+              {sourceJiraKey && (
+                <div className="flex items-center justify-between rounded-xl bg-blue-500/10 border border-blue-500/20 p-2.5 text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-500/20 text-blue-400">
+                      <Globe size={16} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-[var(--color-text-primary)]">Jira Issue: {sourceJiraKey}</p>
+                        <span className="rounded px-1.5 py-0.2 font-semibold text-[10px] bg-emerald-500/15 text-emerald-600 border border-emerald-500/30">
+                          {acs.filter(a => a.text.trim()).length} ACs Extracted
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-[var(--color-text-secondary)]">
+                        Imported from Atlassian Jira Cloud ({jiraStatus?.base_url?.replace("https://", "") || "rohandas8944.atlassian.net"})
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep("upload");
+                      setActiveTab("jira");
+                    }}
+                    className="text-[11px] text-[var(--color-primary)] hover:underline font-medium flex items-center gap-1"
+                  >
+                    Change Story
+                  </button>
+                </div>
+              )}
               
               {/* Attached Source File Pill Banner (Clean & Non-Intrusive) */}
               {storyFile && (
