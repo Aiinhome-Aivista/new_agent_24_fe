@@ -50,9 +50,7 @@ export const storyApi = {
       source_type: string;
       raw_text_length: number;
     }>(
-      apiClient.post("/stories/parse-document", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      })
+      apiClient.post("/stories/parse-document", formData)
     );
   },
 };
