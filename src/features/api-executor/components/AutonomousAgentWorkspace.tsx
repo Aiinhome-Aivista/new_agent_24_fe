@@ -671,16 +671,25 @@ export function AutonomousAgentWorkspace({
       {/* Status Alert Banner */}
       {statusMsg && (
         <div
-          className={`flex items-center justify-between rounded-xl border p-3 text-xs font-medium ${
+          className={`flex items-start justify-between rounded-xl border p-3 text-xs shadow-sm transition-all animate-fadeIn ${
             statusMsg.type === "success"
-              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700"
+              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
               : statusMsg.type === "error"
-              ? "bg-rose-500/10 border-rose-500/30 text-rose-700"
-              : "bg-blue-500/10 border-blue-500/30 text-blue-700"
+              ? "bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300"
+              : "bg-blue-500/10 border-blue-500/30 text-blue-700 dark:text-blue-300"
           }`}
         >
-          <span>{statusMsg.text}</span>
-          <button onClick={() => setStatusMsg(null)} className="font-bold hover:opacity-70">
+          <div className="flex items-center gap-2">
+            {statusMsg.type === "success" ? (
+              <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
+            ) : statusMsg.type === "error" ? (
+              <AlertTriangle size={15} className="text-rose-500 shrink-0" />
+            ) : (
+              <Activity size={15} className="text-blue-500 shrink-0" />
+            )}
+            <span className="font-semibold">{statusMsg.text}</span>
+          </div>
+          <button onClick={() => setStatusMsg(null)} className="font-bold hover:opacity-70 ml-2">
             ✕
           </button>
         </div>
@@ -689,41 +698,110 @@ export function AutonomousAgentWorkspace({
       {/* 3. AUDIT EVIDENCE RESULTS VIEW */}
       {evidence && (
         <div className="space-y-5 animate-fadeIn">
-          {/* Recommendation Banner */}
+          {/* Executive Recommendation Banner */}
           <div
-            className={`rounded-2xl border p-4.5 shadow-sm transition-all ${
+            className={`relative overflow-hidden rounded-2xl border p-5 shadow-lg backdrop-blur-md transition-all ${
               isConforming
-                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100"
+                ? "border-emerald-500/30 bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-transparent text-[var(--color-text-primary)] shadow-emerald-500/5"
                 : isPartial
-                ? "border-amber-500/40 bg-amber-500/10 text-amber-950 dark:text-amber-100"
-                : "border-rose-500/40 bg-rose-500/10 text-rose-950 dark:text-rose-100"
+                ? "border-amber-500/30 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent text-[var(--color-text-primary)] shadow-amber-500/5"
+                : "border-rose-500/30 bg-gradient-to-r from-rose-500/15 via-rose-500/5 to-transparent text-[var(--color-text-primary)] shadow-rose-500/5"
             }`}
           >
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`rounded-md px-2.5 py-1 text-xs font-extrabold uppercase tracking-wide text-white ${
-                      isConforming ? "bg-emerald-600" : isPartial ? "bg-amber-600" : "bg-rose-600"
-                    }`}
-                  >
-                    Recommendation: {evidence.summary_recommendation}
-                  </span>
-                  <span className="rounded-md border border-black/10 dark:border-white/10 px-2 py-0.5 font-mono text-[11px] font-bold">
-                    {evidence.decision_status}
-                  </span>
+            {/* Top subtle glow accent line */}
+            <div
+              className={`absolute top-0 left-0 right-0 h-[2px] ${
+                isConforming
+                  ? "bg-gradient-to-r from-emerald-500 via-emerald-400 to-transparent"
+                  : isPartial
+                  ? "bg-gradient-to-r from-amber-500 via-amber-400 to-transparent"
+                  : "bg-gradient-to-r from-rose-500 via-rose-400 to-transparent"
+              }`}
+            />
+
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-start gap-3.5">
+                {/* Visual Icon Badge */}
+                <div
+                  className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border shadow-inner ${
+                    isConforming
+                      ? "border-emerald-500/40 bg-emerald-500/20 text-emerald-400"
+                      : isPartial
+                      ? "border-amber-500/40 bg-amber-500/20 text-amber-400"
+                      : "border-rose-500/40 bg-rose-500/20 text-rose-400"
+                  }`}
+                >
+                  {isConforming ? (
+                    <ShieldCheck size={22} className="text-emerald-400" />
+                  ) : isPartial ? (
+                    <AlertTriangle size={22} className="text-amber-400" />
+                  ) : (
+                    <AlertTriangle size={22} className="text-rose-400" />
+                  )}
                 </div>
-                <p className="mt-2 text-xs leading-relaxed max-w-4xl opacity-90">
-                  {evidence.decision_summary}
-                </p>
+
+                {/* Verdict Info */}
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-[var(--color-text-secondary)]">
+                      AI Conformance Assessment
+                    </span>
+
+                    {/* Clean Status Pill with Pulsing Indicator */}
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-0.5 text-xs font-bold border shadow-sm ${
+                        isConforming
+                          ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                          : isPartial
+                          ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                          : "bg-rose-500/20 text-rose-300 border-rose-500/40"
+                      }`}
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full animate-pulse ${
+                          isConforming ? "bg-emerald-400" : isPartial ? "bg-amber-400" : "bg-rose-400"
+                        }`}
+                      />
+                      <span>
+                        Recommendation: {evidence.summary_recommendation ? (
+                          evidence.summary_recommendation.charAt(0).toUpperCase() + evidence.summary_recommendation.slice(1)
+                        ) : "Assessed"}
+                      </span>
+                    </span>
+
+                    {/* Decision Status Pill - Clean Sans-Serif font */}
+                    <span className="rounded-full bg-[var(--color-surface-elevated)]/80 border border-[var(--color-border)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--color-text-secondary)] shadow-sm">
+                      {evidence.decision_status}
+                    </span>
+                  </div>
+
+                  <p className="text-xs md:text-sm font-medium leading-relaxed text-[var(--color-text-primary)]/90 max-w-4xl">
+                    {evidence.decision_summary}
+                  </p>
+                </div>
               </div>
 
-              <div className="rounded-xl border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/20 p-2.5 text-right shrink-0">
-                <span className="text-[9.5px] font-bold uppercase tracking-wider opacity-60">Evidence Package</span>
-                <div className="font-mono text-xs font-bold text-[var(--color-primary)]">
-                  {evidence.evidence_key}
+              {/* Right Side: Evidence Artifact Badge */}
+              <div className="flex items-center justify-between lg:justify-end gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/80 p-3 shrink-0 shadow-sm backdrop-blur-sm lg:text-right">
+                <div>
+                  <span className="block text-[9px] font-extrabold uppercase tracking-wider text-[var(--color-text-secondary)]">
+                    Evidence Package
+                  </span>
+                  <div className="font-mono text-xs font-bold text-[var(--color-primary)]">
+                    {evidence.evidence_key}
+                  </div>
+                  <div className="font-mono text-[10px] text-[var(--color-text-secondary)]">
+                    ID: {evidence.traceability_id}
+                  </div>
                 </div>
-                <div className="font-mono text-[9.5px] opacity-60">ID: {evidence.traceability_id}</div>
+                <button
+                  type="button"
+                  onClick={() => handleCopyChecksum(evidence.sha256_seal)}
+                  title="Copy SHA-256 Checksum"
+                  className="rounded-lg p-2 border border-[var(--color-border)] bg-[var(--color-surface-elevated)] hover:bg-[var(--color-surface-elevated)]/80 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+                >
+                  {copiedChecksum ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                </button>
               </div>
             </div>
           </div>
@@ -1057,7 +1135,7 @@ export function AutonomousAgentWorkspace({
                   <span className="text-xs font-bold text-[var(--color-text-primary)]">Word Evidence Package</span>
                 </div>
                 <p className="text-[11px] text-[var(--color-text-secondary)]">
-                  Deterministic Word (.docx) package with embedded API call snapshots (URL, request payload, live response) for every anomaly, telemetry matrices, and SHA-256 seal.
+                  Deterministic Word (.docx) package with embedded API call snapshots (URL, request payload, live response) for every single test case (both verified passes and anomalies), telemetry matrices, and SHA-256 seal.
                 </p>
               </div>
               <a
@@ -1077,7 +1155,7 @@ export function AutonomousAgentWorkspace({
                   <span className="text-xs font-bold text-[var(--color-text-primary)]">Print / PDF Report</span>
                 </div>
                 <p className="text-[11px] text-[var(--color-text-secondary)]">
-                  Print-optimized standalone HTML/PDF report featuring visual terminal snapshots of all anomalous API calls, payloads, and audit seals.
+                  Print-optimized standalone HTML/PDF report featuring visual terminal snapshots of all executed test cases (both successful passes and anomalous API calls), request/response payloads, and audit seals.
                 </p>
               </div>
               <a
