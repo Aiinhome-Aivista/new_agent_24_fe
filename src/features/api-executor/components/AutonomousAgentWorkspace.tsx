@@ -145,6 +145,11 @@ export function AutonomousAgentWorkspace({
   // Inspection & tabs
   const [inspectedEndpointIdx, setInspectedEndpointIdx] = useState<number>(0);
   const [showLogs, setShowLogs] = useState<boolean>(false);
+  const [expandedAnomalySnapshots, setExpandedAnomalySnapshots] = useState<Record<number, boolean>>({});
+
+  const toggleAnomalySnapshot = (idx: number) => {
+    setExpandedAnomalySnapshots((prev) => ({ ...prev, [idx]: !prev[idx] }));
+  };
 
   // ALM Write-back Guardrail state
   const [almApprover, setAlmApprover] = useState("QA Lead Reviewer");
@@ -784,43 +789,123 @@ export function AutonomousAgentWorkspace({
               </div>
 
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                {evidence.deviation_summary.deviations.map((d: any, idx: number) => (
-                  <div
-                    key={idx}
-                    className="rounded-xl border border-amber-500/20 bg-[var(--color-surface)] p-3 space-y-2 shadow-sm"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="rounded px-1.5 py-0.5 text-[9px] font-extrabold uppercase bg-amber-500/15 text-amber-700 border border-amber-500/30">
-                          {d.severity}
-                        </span>
-                        <span className="font-mono text-xs font-bold text-[var(--color-primary)]">
-                          {d.field}
-                        </span>
-                      </div>
-                      <span className="font-mono text-[10px] text-[var(--color-text-secondary)]">{d.type}</span>
-                    </div>
+                {evidence.deviation_summary.deviations.map((d: any, idx: number) => {
+                  const isExpanded = !!expandedAnomalySnapshots[idx];
+                  const apiInfo = d.api_call || {};
+                  const method = (d.method || apiInfo.method || "GET").toUpperCase();
+                  const url = d.url || apiInfo.url || d.endpoint || "";
+                  const statusCode = d.status_code !== undefined ? d.status_code : (apiInfo.status_code !== undefined ? apiInfo.status_code : "N/A");
+                  const reqPayload = d.request_payload !== undefined ? d.request_payload : apiInfo.request_payload;
+                  const respPayload = d.response_payload !== undefined ? d.response_payload : apiInfo.response_payload;
 
-                    <div className="rounded-lg bg-[var(--color-surface-elevated)]/50 p-2 text-xs space-y-1">
-                      <div className="text-[11px] text-[var(--color-text-secondary)]">
-                        <span className="font-semibold text-rose-500">Live Observation: </span>
-                        <code className="font-mono font-bold text-[var(--color-text-primary)]">{d.actual}</code>
+                  return (
+                    <div
+                      key={idx}
+                      className="rounded-xl border border-amber-500/20 bg-[var(--color-surface)] p-3 space-y-2 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="rounded px-1.5 py-0.5 text-[9px] font-extrabold uppercase bg-amber-500/15 text-amber-700 border border-amber-500/30">
+                            {d.severity}
+                          </span>
+                          <span className="font-mono text-xs font-bold text-[var(--color-primary)]">
+                            {d.field}
+                          </span>
+                        </div>
+                        <span className="font-mono text-[10px] text-[var(--color-text-secondary)]">{d.type}</span>
                       </div>
-                      <div className="text-[11px] text-[var(--color-text-secondary)]">
-                        <span className="font-semibold text-emerald-600">Requirement Declared: </span>
-                        <span>{d.expected}</span>
+
+                      <div className="rounded-lg bg-[var(--color-surface-elevated)]/50 p-2 text-xs space-y-1">
+                        <div className="text-[11px] text-[var(--color-text-secondary)]">
+                          <span className="font-semibold text-rose-500">Live Observation: </span>
+                          <code className="font-mono font-bold text-[var(--color-text-primary)]">{d.actual}</code>
+                        </div>
+                        <div className="text-[11px] text-[var(--color-text-secondary)]">
+                          <span className="font-semibold text-emerald-600">Requirement Declared: </span>
+                          <span>{d.expected}</span>
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed">
+                        {d.explanation}
+                      </p>
+
+                      <div className="rounded-lg border border-[var(--color-border)] bg-blue-500/5 p-2 text-[10px] text-blue-700">
+                        <strong>Recommended Action:</strong> {d.remediation}
+                      </div>
+
+                      {/* Interactive API Call Evidence Snapshot */}
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleAnomalySnapshot(idx)}
+                          className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] hover:bg-[var(--color-surface-elevated)]/80 text-[11px] font-medium text-[var(--color-text-primary)] transition-colors"
+                        >
+                          <div className="flex items-center gap-1.5 truncate">
+                            <Terminal size={12} className="text-[var(--color-primary)] shrink-0" />
+                            <span className="font-semibold">Evidence Snapshot:</span>
+                            <span className="font-mono text-[10px] text-[var(--color-primary)] font-bold">
+                              {method}
+                            </span>
+                            <span className="font-mono text-[10px] text-[var(--color-text-secondary)] truncate">
+                              {url}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 text-[10px] text-[var(--color-text-secondary)] shrink-0">
+                            <span>{isExpanded ? "Collapse" : "Inspect Payload"}</span>
+                            {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                          </div>
+                        </button>
+
+                        {isExpanded && (
+                          <div className="mt-2 space-y-2 rounded-lg border border-[var(--color-border)] bg-[#090d16] p-2.5 text-[10px] shadow-inner">
+                            {/* Snapshot Header */}
+                            <div className="flex items-center justify-between border-b border-[#1e293b] pb-1.5 font-mono text-[10px]">
+                              <div className="flex items-center gap-1.5 truncate">
+                                <span className="rounded bg-[var(--color-primary)] px-1.5 py-0.5 text-[9px] font-black text-white">
+                                  {method}
+                                </span>
+                                <span className="text-sky-400 font-semibold truncate">
+                                  {url}
+                                </span>
+                              </div>
+                              <span className={`shrink-0 font-bold ${String(statusCode).startsWith("2") ? "text-emerald-400" : "text-rose-400"}`}>
+                                HTTP {statusCode}
+                              </span>
+                            </div>
+
+                            {/* Request Payload */}
+                            <div className="space-y-1">
+                              <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                                <span>Request Payload (Body Sent)</span>
+                                <span className="text-[8px] text-slate-500 font-mono">
+                                  {reqPayload && (typeof reqPayload === "object" ? Object.keys(reqPayload).length > 0 : true) ? "JSON Body" : "No Body"}
+                                </span>
+                              </div>
+                              <pre className="max-h-24 overflow-y-auto rounded border border-[#1e293b] bg-[#020617] p-2 font-mono text-[9.5px] text-slate-300 leading-relaxed">
+                                {reqPayload !== undefined && reqPayload !== null && reqPayload !== ""
+                                  ? (typeof reqPayload === "string" ? reqPayload : JSON.stringify(reqPayload, null, 2))
+                                  : "[No Request Payload Body - GET / Parameterless Request]"}
+                              </pre>
+                            </div>
+
+                            {/* Live Response Payload */}
+                            <div className="space-y-1">
+                              <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                                Live Captured Server Response
+                              </div>
+                              <pre className="max-h-32 overflow-y-auto rounded border border-[#1e293b] bg-[#020617] p-2 font-mono text-[9.5px] text-emerald-300 leading-relaxed">
+                                {respPayload !== undefined && respPayload !== null && respPayload !== ""
+                                  ? (typeof respPayload === "string" ? respPayload : JSON.stringify(respPayload, null, 2))
+                                  : "[Empty Response Body]"}
+                              </pre>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
-
-                    <p className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed">
-                      {d.explanation}
-                    </p>
-
-                    <div className="rounded-lg border border-[var(--color-border)] bg-blue-500/5 p-2 text-[10px] text-blue-700">
-                      <strong>Recommended Action:</strong> {d.remediation}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </Card>
           )}
@@ -972,7 +1057,7 @@ export function AutonomousAgentWorkspace({
                   <span className="text-xs font-bold text-[var(--color-text-primary)]">Word Evidence Package</span>
                 </div>
                 <p className="text-[11px] text-[var(--color-text-secondary)]">
-                  Deterministic Microsoft Word (.docx) report with tables and SHA-256 seal.
+                  Deterministic Word (.docx) package with embedded API call snapshots (URL, request payload, live response) for every anomaly, telemetry matrices, and SHA-256 seal.
                 </p>
               </div>
               <a
@@ -992,7 +1077,7 @@ export function AutonomousAgentWorkspace({
                   <span className="text-xs font-bold text-[var(--color-text-primary)]">Print / PDF Report</span>
                 </div>
                 <p className="text-[11px] text-[var(--color-text-secondary)]">
-                  Print-optimized standalone HTML/PDF evidence report for audit archiving.
+                  Print-optimized standalone HTML/PDF report featuring visual terminal snapshots of all anomalous API calls, payloads, and audit seals.
                 </p>
               </div>
               <a
