@@ -22,11 +22,13 @@ import {
   ChevronDown,
   ChevronUp,
   Lock,
+  Camera,
 } from "lucide-react";
 import { apiExecutorApi } from "@/services/api/apiExecutorApi";
 import { storyApi } from "@/services/api/storyApi";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { PostmanSimulatorModal } from "./PostmanSimulatorModal";
 import type { Project, Story, AcceptanceCriterion } from "@/types";
 
 function extractEndpointsFromCollection(col: any): Array<{ method: string; path: string; name: string; expected: number }> {
@@ -119,6 +121,10 @@ export function AutonomousAgentWorkspace({
   const [selectedSampleId, setSelectedSampleId] = useState<string>("auth-user-service");
   const [customCollectionJson, setCustomCollectionJson] = useState<string>("");
   const [collectionSource, setCollectionSource] = useState<"sample" | "paste">("sample");
+
+  // Visual Postman runner modal state (unchecked by default for fast background run)
+  const [useVisualPostman, setUseVisualPostman] = useState(false);
+  const [isPostmanModalOpen, setIsPostmanModalOpen] = useState(false);
 
   // Dynamically parsed endpoints from selected or custom collection
   const activeEndpoints = useMemo(() => {
@@ -213,6 +219,12 @@ export function AutonomousAgentWorkspace({
   const handleLaunchAgent = async () => {
     if (!baseUrl.trim()) {
       setStatusMsg({ type: "error", text: "Target API Host / Base URL is required." });
+      return;
+    }
+
+    // If Visual Postman mode is enabled, open interactive runner modal
+    if (useVisualPostman) {
+      setIsPostmanModalOpen(true);
       return;
     }
 
@@ -344,7 +356,24 @@ export function AutonomousAgentWorkspace({
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            {/* Live Visual Postman Runner Checkbox */}
+            <label className="flex items-center gap-2 cursor-pointer select-none bg-[var(--color-surface-elevated)] hover:bg-[var(--color-surface)] border border-[var(--color-border)] px-3 py-2 rounded-xl transition-all shadow-sm">
+              <input
+                type="checkbox"
+                checked={useVisualPostman}
+                onChange={(e) => setUseVisualPostman(e.target.checked)}
+                className="h-4 w-4 rounded text-orange-600 focus:ring-orange-500 border-[var(--color-border)] cursor-pointer accent-orange-500"
+              />
+              <div className="flex items-center gap-1.5 text-xs">
+                <Camera size={13} className="text-orange-500" />
+                <span className="font-semibold text-[var(--color-text-primary)]">Live Visual Postman Runner</span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-orange-500/10 text-orange-600 border border-orange-500/20 font-medium">
+                  Snapshots
+                </span>
+              </div>
+            </label>
+
             {evidence && (
               <Button
                 variant="secondary"
@@ -361,8 +390,17 @@ export function AutonomousAgentWorkspace({
               disabled={isRunning}
               className="shadow-md shadow-[var(--color-primary)]/20 px-5 py-2.5 font-semibold text-xs flex items-center gap-2 rounded-xl"
             >
-              <Sparkles size={15} />
-              <span>Launch Autonomous Agent</span>
+              {useVisualPostman ? (
+                <>
+                  <Camera size={15} />
+                  <span>Launch Visual Postman</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles size={15} />
+                  <span>Launch Autonomous Agent</span>
+                </>
+              )}
             </Button>
           </div>
         </div>
@@ -1323,6 +1361,44 @@ export function AutonomousAgentWorkspace({
           </div>
         </div>
       )}
+
+      {/* 4. Interactive Live Visual Postman Runner Modal */}
+      <PostmanSimulatorModal
+        isOpen={isPostmanModalOpen}
+        onClose={() => setIsPostmanModalOpen(false)}
+        baseUrl={baseUrl}
+        collection={
+          collectionSource === "sample"
+            ? sampleCollections.find((c) => c.id === selectedSampleId)?.collection
+            : customCollectionJson.trim()
+            ? (() => {
+                try {
+                  return JSON.parse(customCollectionJson);
+                } catch {
+                  return undefined;
+                }
+              })()
+            : undefined
+        }
+        collectionName={
+          collectionSource === "sample"
+            ? sampleCollections.find((c) => c.id === selectedSampleId)?.name || "Postman Collection"
+            : "Custom Postman Collection"
+        }
+        storyUuid={selectedStoryUuid || undefined}
+        projectUuid={selectedProjectUuid || undefined}
+        storyDetails={selectedStoryDetails}
+        acceptanceCriteria={acceptanceCriteria}
+        onComplete={(ev) => {
+          setEvidence(ev);
+          setCurrentStep(5);
+          setInspectedEndpointIdx(0);
+          setStatusMsg({
+            type: ev.summary_recommendation?.includes("deviates") ? "error" : "success",
+            text: `Autonomous verification completed: ${ev.summary_recommendation?.toUpperCase() || "SUCCESS"} (${ev.passed_endpoints || 0}/${ev.total_endpoints || 0} passed, ${ev.total_deviations || 0} anomalies detected).`,
+          });
+        }}
+      />
     </div>
   );
 }
