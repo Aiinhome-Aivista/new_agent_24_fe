@@ -24,6 +24,7 @@ import {
   Lock,
   Camera,
   UploadCloud,
+  X,
 } from "lucide-react";
 import { apiExecutorApi } from "@/services/api/apiExecutorApi";
 import { storyApi } from "@/services/api/storyApi";
@@ -1066,6 +1067,9 @@ export function AutonomousAgentWorkspace({
                 <h3 className="text-xs font-bold text-[var(--color-text-primary)]">
                   Requirement & Endpoint Traceability Matrix
                 </h3>
+                <span className="text-[10px] text-[var(--color-text-secondary)] hidden sm:inline">
+                  (Click any row to inspect payloads)
+                </span>
               </div>
               <span className="text-[10px] text-[var(--color-text-secondary)]">Story: {evidence.story?.external_key}</span>
             </div>
@@ -1080,29 +1084,40 @@ export function AutonomousAgentWorkspace({
                     <th className="py-2 px-2.5 text-right">Latency</th>
                     <th className="py-2 px-2.5">Assertions</th>
                     <th className="py-2 px-2.5 text-center">Deviations</th>
-                    <th className="py-2 px-2.5 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--color-border)]">
                   {evidence.results?.map((r: any, idx: number) => {
                     const hasDev = r.deviations && r.deviations.length > 0;
+                    const isSelected = inspectedEndpointIdx === idx;
                     return (
                       <tr
                         key={idx}
-                        className={`hover:bg-[var(--color-surface-elevated)]/40 transition-colors ${
-                          inspectedEndpointIdx === idx ? "bg-[var(--color-primary)]/5" : ""
+                        onClick={() => setInspectedEndpointIdx(isSelected ? -1 : idx)}
+                        className={`cursor-pointer transition-colors ${
+                          isSelected
+                            ? "bg-[var(--color-primary)]/10 font-medium"
+                            : "hover:bg-[var(--color-surface-elevated)]/50"
                         }`}
+                        title="Click to inspect request and response payloads"
                       >
                         <td className="py-2.5 px-2.5">
-                          <span
-                            className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-bold ${
-                              r.method === "POST"
-                                ? "bg-blue-500/10 text-blue-600"
-                                : "bg-emerald-500/10 text-emerald-600"
-                            }`}
-                          >
-                            {r.method}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full shrink-0 transition-colors ${
+                                isSelected ? "bg-[var(--color-primary)]" : "bg-transparent"
+                              }`}
+                            />
+                            <span
+                              className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-bold ${
+                                r.method === "POST"
+                                  ? "bg-blue-500/10 text-blue-600"
+                                  : "bg-emerald-500/10 text-emerald-600"
+                              }`}
+                            >
+                              {r.method}
+                            </span>
+                          </div>
                         </td>
                         <td className="py-2.5 px-2.5">
                           <div className="font-semibold text-[var(--color-text-primary)] text-[11px]">{r.test_key}</div>
@@ -1139,15 +1154,6 @@ export function AutonomousAgentWorkspace({
                             <span className="text-[10px] text-emerald-600 font-semibold">Clean</span>
                           )}
                         </td>
-                        <td className="py-2.5 px-2.5 text-right">
-                          <Button
-                            variant={inspectedEndpointIdx === idx ? "primary" : "secondary"}
-                            onClick={() => setInspectedEndpointIdx(idx)}
-                            className="text-[10px] px-2.5 py-1"
-                          >
-                            Inspect
-                          </Button>
-                        </td>
                       </tr>
                     );
                   })}
@@ -1156,7 +1162,7 @@ export function AutonomousAgentWorkspace({
             </div>
 
             {/* Selected Endpoint Request & Response Inspector */}
-            {evidence.results?.[inspectedEndpointIdx] && (
+            {inspectedEndpointIdx >= 0 && evidence.results?.[inspectedEndpointIdx] && (
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)]/30 p-3.5 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1165,10 +1171,20 @@ export function AutonomousAgentWorkspace({
                       Inspecting: {evidence.results[inspectedEndpointIdx].method} {evidence.results[inspectedEndpointIdx].endpoint}
                     </span>
                   </div>
-                  <span className="rounded bg-black/10 dark:bg-white/10 px-2 py-0.5 text-[9.5px] font-mono text-[var(--color-text-secondary)] flex items-center gap-1">
-                    <Lock size={10} className="text-emerald-500" />
-                    Secrets Redacted
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded bg-black/10 dark:bg-white/10 px-2 py-0.5 text-[9.5px] font-mono text-[var(--color-text-secondary)] flex items-center gap-1">
+                      <Lock size={10} className="text-emerald-500" />
+                      Secrets Redacted
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setInspectedEndpointIdx(-1)}
+                      className="rounded p-1 hover:bg-black/10 dark:hover:bg-white/10 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+                      title="Close Inspector"
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
