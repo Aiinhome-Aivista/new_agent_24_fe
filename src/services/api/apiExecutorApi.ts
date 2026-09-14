@@ -64,6 +64,16 @@ export const apiExecutorApi = {
   }): Promise<any> =>
     unwrap(apiClient.post("/api-executor/alm-writeback", payload)),
 
+  syncEvidenceToJira: (payload: {
+    issue_key: string;
+    evidence_key?: string;
+    docx_path?: string;
+    evidence_data?: any;
+    approval_comment?: string;
+    approver_name?: string;
+  }): Promise<any> =>
+    unwrap(apiClient.post("/jira/sync-evidence", payload)),
+
   getEvidenceDocxUrl: (evidenceKey: string): string =>
     `/api/v1/api-executor/evidence/${evidenceKey}/download-docx`,
 
@@ -73,4 +83,5 @@ export const apiExecutorApi = {
   getEvidenceJsonUrl: (evidenceKey: string): string =>
     `/api/v1/api-executor/evidence/${evidenceKey}/download-json`,
 };
+
 

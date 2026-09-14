@@ -56,7 +56,7 @@ export function ApiExecutorPage() {
   const [selectedHistoryRun, setSelectedHistoryRun] = useState<ExecutionRun | null>(null);
 
   // Global Connection Configuration
-  const [baseUrl, setBaseUrl] = useState("http://localhost:5001");
+  const [baseUrl, setBaseUrl] = useState("");
 
   // Target Ping State
   const [pinging, setPinging] = useState(false);
@@ -71,9 +71,9 @@ export function ApiExecutorPage() {
 
   // Manual Console State
   const [manualMethod, setManualMethod] = useState("POST");
-  const [manualUrl, setManualUrl] = useState("http://localhost:5001/api/login");
+  const [manualUrl, setManualUrl] = useState("");
   const [manualReqTab, setManualReqTab] = useState<"body" | "headers" | "auth" | "assertions">("body");
-  const [manualBody, setManualBody] = useState('{\n  "username": "manas",\n  "password": "password123"\n}');
+  const [manualBody, setManualBody] = useState('{\n  \n}');
   const [manualHeaders, setManualHeaders] = useState<HeaderRow[]>([
     { key: "Content-Type", value: "application/json", enabled: true },
   ]);

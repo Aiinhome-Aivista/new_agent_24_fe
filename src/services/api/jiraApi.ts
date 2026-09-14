@@ -33,6 +33,31 @@ export interface JiraStoryDetail {
   source_type: string;
 }
 
+export interface JiraEvidenceSyncPayload {
+  issue_key: string;
+  evidence_key?: string;
+  docx_path?: string;
+  evidence_data?: any;
+  approval_comment?: string;
+  approver_name?: string;
+}
+
+export interface JiraEvidenceSyncResponse {
+  success: boolean;
+  issue_key: string;
+  jira_url: string;
+  comment_id: string;
+  attachment?: {
+    id: string;
+    filename: string;
+    size: number;
+    created: string;
+    mimeType?: string;
+    content?: string;
+  };
+  synced_at: string;
+}
+
 export const jiraApi = {
   getStatus: () =>
     unwrap<JiraStatusResponse>(apiClient.get("/jira/status")),
@@ -45,5 +70,10 @@ export const jiraApi = {
   fetchStory: (issueKey: string) =>
     unwrap<JiraStoryDetail>(
       apiClient.post("/jira/fetch-story", { issue_key: issueKey })
+    ),
+
+  syncEvidence: (payload: JiraEvidenceSyncPayload) =>
+    unwrap<JiraEvidenceSyncResponse>(
+      apiClient.post("/jira/sync-evidence", payload)
     ),
 };

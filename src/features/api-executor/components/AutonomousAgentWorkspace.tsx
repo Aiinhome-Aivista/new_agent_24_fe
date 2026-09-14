@@ -23,12 +23,14 @@ import {
   ChevronUp,
   Lock,
   Camera,
+  UploadCloud,
 } from "lucide-react";
 import { apiExecutorApi } from "@/services/api/apiExecutorApi";
 import { storyApi } from "@/services/api/storyApi";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { PostmanSimulatorModal } from "./PostmanSimulatorModal";
+import { JiraSaveConfirmationModal } from "./JiraSaveConfirmationModal";
 import type { Project, Story, AcceptanceCriterion } from "@/types";
 
 function extractEndpointsFromCollection(col: any): Array<{ method: string; path: string; name: string; expected: number }> {
@@ -125,6 +127,10 @@ export function AutonomousAgentWorkspace({
   // Visual Postman runner modal state (unchecked by default for fast background run)
   const [useVisualPostman, setUseVisualPostman] = useState(false);
   const [isPostmanModalOpen, setIsPostmanModalOpen] = useState(false);
+
+  // Jira Story Save Confirmation Modal State
+  const [isJiraModalOpen, setIsJiraModalOpen] = useState(false);
+  const [jiraSyncResult, setJiraSyncResult] = useState<any | null>(null);
 
   // Dynamically parsed endpoints from selected or custom collection
   const activeEndpoints = useMemo(() => {
@@ -273,6 +279,7 @@ export function AutonomousAgentWorkspace({
       setCurrentStep(5);
       setEvidence(res);
       setInspectedEndpointIdx(0);
+      setIsJiraModalOpen(true);
       setStatusMsg({
         type: res.summary_recommendation?.includes("deviates") ? "error" : "success",
         text: `Autonomous verification completed: ${res.summary_recommendation.toUpperCase()} (${res.passed_endpoints}/${res.total_endpoints} passed, ${res.total_deviations} anomalies detected).`,
@@ -819,8 +826,8 @@ export function AutonomousAgentWorkspace({
                 </div>
               </div>
 
-              {/* Right Side: Evidence Artifact Badge */}
-              <div className="flex items-center justify-between lg:justify-end gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/80 p-3 shrink-0 shadow-sm backdrop-blur-sm lg:text-right">
+              {/* Right Side: Evidence Artifact Badge & Jira Quick Action */}
+              <div className="flex items-center justify-between lg:justify-end gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/80 p-2.5 shrink-0 shadow-sm backdrop-blur-sm lg:text-right">
                 <div>
                   <span className="block text-[9px] font-extrabold uppercase tracking-wider text-[var(--color-text-secondary)]">
                     Evidence Package
@@ -832,14 +839,39 @@ export function AutonomousAgentWorkspace({
                     ID: {evidence.traceability_id}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleCopyChecksum(evidence.sha256_seal)}
-                  title="Copy SHA-256 Checksum"
-                  className="rounded-lg p-2 border border-[var(--color-border)] bg-[var(--color-surface-elevated)] hover:bg-[var(--color-surface-elevated)]/80 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
-                >
-                  {copiedChecksum ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleCopyChecksum(evidence.sha256_seal)}
+                    title="Copy SHA-256 Checksum"
+                    className="rounded-lg p-2 border border-[var(--color-border)] bg-[var(--color-surface-elevated)] hover:bg-[var(--color-surface-elevated)]/80 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+                  >
+                    {copiedChecksum ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                  </button>
+
+                  {jiraSyncResult ? (
+                    <a
+                      href={jiraSyncResult.jira_url || "#"}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 px-2.5 py-1.5 text-[11px] font-bold hover:bg-emerald-500/25 transition-colors"
+                      title={`Synced with Jira [${jiraSyncResult.issue_key}]`}
+                    >
+                      <span>Jira Synced</span>
+                      <ExternalLink size={12} />
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsJiraModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1.5 text-[11px] font-bold transition-colors shadow-sm"
+                      title="Save & Attach Evidence to Jira Story"
+                    >
+                      <UploadCloud size={13} />
+                      <span>Sync to Jira</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -1164,6 +1196,61 @@ export function AutonomousAgentWorkspace({
             )}
           </Card>
 
+          {/* Jira Cloud Story Integration Card */}
+          <Card className="p-4 border-blue-500/30 bg-gradient-to-br from-[var(--color-surface)] via-blue-500/5 to-[var(--color-surface)] shadow-sm space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/15 text-blue-600 border border-blue-500/30 shrink-0">
+                  <UploadCloud size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-xs font-bold text-[var(--color-text-primary)]">
+                      Jira Story Synchronization & Attachment
+                    </h4>
+                    {jiraSyncResult ? (
+                      <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-600">
+                        Synced with Jira [{jiraSyncResult.issue_key}]
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-blue-500/15 border border-blue-500/30 px-2 py-0.5 text-[10px] font-bold text-blue-600">
+                        Jira Cloud Ready
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-[var(--color-text-secondary)]">
+                    {jiraSyncResult
+                      ? `Structured verification report comment (#${jiraSyncResult.comment_id}) and signed Word package attached to Jira Story [${jiraSyncResult.issue_key}].`
+                      : `Save structured verification report & signed .docx package (with visual API snapshots) directly to Jira Story${selectedStoryDetails?.external_key ? ` [${selectedStoryDetails.external_key}]` : ""}.`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {jiraSyncResult ? (
+                  <a
+                    href={jiraSyncResult.jira_url || "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 text-xs font-bold transition-colors shadow-sm"
+                  >
+                    <span>Open in Jira [{jiraSyncResult.issue_key}]</span>
+                    <ExternalLink size={13} />
+                  </a>
+                ) : (
+                  <Button
+                    variant="primary"
+                    onClick={() => setIsJiraModalOpen(true)}
+                    className="text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                  >
+                    <UploadCloud size={14} />
+                    <span>Save to Jira Story {selectedStoryDetails?.external_key ? `[${selectedStoryDetails.external_key}]` : ""}</span>
+                  </Button>
+                )}
+              </div>
+            </div>
+          </Card>
+
           {/* Evidence Export Cards */}
           <div className="grid grid-cols-1 gap-3.5 md:grid-cols-3">
             <Card className="p-3.5 border-[var(--color-border)] bg-[var(--color-surface)] flex flex-col justify-between space-y-2.5 shadow-sm">
@@ -1393,10 +1480,23 @@ export function AutonomousAgentWorkspace({
           setEvidence(ev);
           setCurrentStep(5);
           setInspectedEndpointIdx(0);
+          setIsJiraModalOpen(true);
           setStatusMsg({
             type: ev.summary_recommendation?.includes("deviates") ? "error" : "success",
             text: `Autonomous verification completed: ${ev.summary_recommendation?.toUpperCase() || "SUCCESS"} (${ev.passed_endpoints || 0}/${ev.total_endpoints || 0} passed, ${ev.total_deviations || 0} anomalies detected).`,
           });
+        }}
+      />
+
+      {/* 5. Jira Story Save Confirmation & Attachment Modal */}
+      <JiraSaveConfirmationModal
+        isOpen={isJiraModalOpen}
+        onClose={() => setIsJiraModalOpen(false)}
+        evidence={evidence}
+        defaultIssueKey={selectedStoryDetails?.external_key || ""}
+        storyTitle={selectedStoryDetails?.title}
+        onSyncSuccess={(res) => {
+          setJiraSyncResult(res);
         }}
       />
     </div>

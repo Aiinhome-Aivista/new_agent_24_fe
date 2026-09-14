@@ -143,7 +143,7 @@ export function PostmanSimulatorModal({
 
     apiExecutorApi
       .runAutonomousAgent({
-        base_url: baseUrl.trim() || "http://localhost:5001",
+        base_url: baseUrl.trim(),
         collection_json: collection,
         collection_name: collectionName,
         story_uuid: storyUuid,
