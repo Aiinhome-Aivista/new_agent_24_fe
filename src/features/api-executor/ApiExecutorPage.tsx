@@ -443,7 +443,7 @@ export function ApiExecutorPage() {
       </AnimatePresence>
 
       {/* TAB 0: AUTONOMOUS AGENT WORKSPACE */}
-      {activeTab === "autonomous" && (
+      <div className={activeTab === "autonomous" ? "block" : "hidden"}>
         <AutonomousAgentWorkspace
           projects={projects}
           selectedProjectUuid={selectedProjectUuid}
@@ -457,10 +457,10 @@ export function ApiExecutorPage() {
           onPing={handlePing}
           pinging={pinging}
         />
-      )}
+      </div>
 
       {/* TAB 1: INTERACTIVE API CONSOLE (MANUAL TESTING) */}
-      {activeTab === "manual" && (
+      <div className={activeTab === "manual" ? "block" : "hidden"}>
         <div className="space-y-6">
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
             {/* Left Column: Request Builder (7 cols) */}
@@ -988,10 +988,10 @@ export function ApiExecutorPage() {
             </div>
           </div>
         </div>
-      )}
+      </div>
 
       {/* TAB 2: EXECUTION HISTORY */}
-      {activeTab === "history" && (
+      <div className={activeTab === "history" ? "block" : "hidden"}>
         <Card className="p-5 space-y-4">
           <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
             <div>
@@ -1170,7 +1170,7 @@ export function ApiExecutorPage() {
             </div>
           )}
         </Card>
-      )}
+      </div>
 
       {/* INSPECTION MODAL */}
       <AnimatePresence>

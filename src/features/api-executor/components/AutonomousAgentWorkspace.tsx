@@ -102,6 +102,9 @@ interface AutonomousAgentWorkspaceProps {
   pinging: boolean;
 }
 
+const SESSION_EVIDENCE_KEY = "agent24_last_autonomous_evidence";
+const SESSION_JIRA_SYNC_KEY = "agent24_last_jira_sync";
+
 export function AutonomousAgentWorkspace({
   projects,
   selectedProjectUuid,
@@ -115,7 +118,14 @@ export function AutonomousAgentWorkspace({
   // Autonomous execution states
   const [isRunning, setIsRunning] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
-  const [evidence, setEvidence] = useState<any | null>(null);
+  const [evidence, setEvidence] = useState<any | null>(() => {
+    try {
+      const saved = sessionStorage.getItem(SESSION_EVIDENCE_KEY);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [copiedChecksum, setCopiedChecksum] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
 
@@ -131,7 +141,36 @@ export function AutonomousAgentWorkspace({
 
   // Jira Story Save Confirmation Modal State
   const [isJiraModalOpen, setIsJiraModalOpen] = useState(false);
-  const [jiraSyncResult, setJiraSyncResult] = useState<any | null>(null);
+  const [jiraSyncResult, setJiraSyncResult] = useState<any | null>(() => {
+    try {
+      const saved = sessionStorage.getItem(SESSION_JIRA_SYNC_KEY);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Persist evidence to sessionStorage across route and tab changes
+  useEffect(() => {
+    try {
+      if (evidence) {
+        sessionStorage.setItem(SESSION_EVIDENCE_KEY, JSON.stringify(evidence));
+      } else {
+        sessionStorage.removeItem(SESSION_EVIDENCE_KEY);
+      }
+    } catch {}
+  }, [evidence]);
+
+  // Persist Jira sync result to sessionStorage across route and tab changes
+  useEffect(() => {
+    try {
+      if (jiraSyncResult) {
+        sessionStorage.setItem(SESSION_JIRA_SYNC_KEY, JSON.stringify(jiraSyncResult));
+      } else {
+        sessionStorage.removeItem(SESSION_JIRA_SYNC_KEY);
+      }
+    } catch {}
+  }, [jiraSyncResult]);
 
   // Dynamically parsed endpoints from selected or custom collection
   const activeEndpoints = useMemo(() => {
@@ -383,13 +422,32 @@ export function AutonomousAgentWorkspace({
             </label>
 
             {evidence && (
-              <Button
-                variant="secondary"
-                onClick={() => setIsConfigCollapsed(!isConfigCollapsed)}
-                className="text-xs px-3 py-2 rounded-xl"
-              >
-                {isConfigCollapsed ? "Show Setup" : "Hide Setup"}
-              </Button>
+              <>
+                <Button
+                  variant="secondary"
+                  onClick={() => setIsConfigCollapsed(!isConfigCollapsed)}
+                  className="text-xs px-3 py-2 rounded-xl"
+                >
+                  {isConfigCollapsed ? "Show Setup" : "Hide Setup"}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setEvidence(null);
+                    setJiraSyncResult(null);
+                    setAlmSuccessResult(null);
+                    setCurrentStep(0);
+                    try {
+                      sessionStorage.removeItem(SESSION_EVIDENCE_KEY);
+                      sessionStorage.removeItem(SESSION_JIRA_SYNC_KEY);
+                    } catch {}
+                  }}
+                  className="text-xs px-3 py-2 rounded-xl text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 border border-rose-500/20"
+                  title="Clear current verification results and start a fresh run"
+                >
+                  <span>Clear Results</span>
+                </Button>
+              </>
             )}
             <Button
               variant="primary"
