@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2,
@@ -50,12 +50,15 @@ interface HeaderRow {
 export function ApiExecutorPage() {
   const [searchParams] = useSearchParams();
   const projectParam = searchParams.get("project");
+  const storyParam = searchParams.get("story") || searchParams.get("story_uuid");
+  const workflowParam = searchParams.get("workflow") || searchParams.get("workflow_id");
+  const autorunParam = searchParams.get("autorun") === "true";
 
   // Navigation tabs: "autonomous" (Autonomous Verification Agent) | "manual" (Interactive Console) | "history" (Run History)
   const [activeTab, setActiveTab] = useState<"autonomous" | "manual" | "history">("autonomous");
   const [selectedHistoryRun, setSelectedHistoryRun] = useState<ExecutionRun | null>(null);
 
-  // Global Connection Configuration
+  // Global Connection Configuration (extracted dynamically from Postman collection)
   const [baseUrl, setBaseUrl] = useState("");
 
   // Target Ping State
@@ -119,9 +122,19 @@ export function ApiExecutorPage() {
     storyApi
       .list(selectedProjectUuid)
       .then((res) => {
-        setStories(res.stories || []);
-        if (res.stories?.length > 0) {
-          setSelectedStoryUuid(res.stories[0].uuid);
+        const fetchedStories = res.stories || [];
+        setStories(fetchedStories);
+        if (fetchedStories.length > 0) {
+          if (storyParam) {
+            const matched = fetchedStories.find(
+              (s) => s.uuid === storyParam || s.external_key?.toUpperCase() === storyParam.toUpperCase()
+            );
+            if (matched) {
+              setSelectedStoryUuid(matched.uuid);
+              return;
+            }
+          }
+          setSelectedStoryUuid(fetchedStories[0].uuid);
         } else {
           setSelectedStoryUuid("");
         }
@@ -322,6 +335,43 @@ export function ApiExecutorPage() {
         </div>
       </div>
 
+      {/* Connected Workflow Handoff Banner */}
+      {workflowParam && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-purple-500/40 bg-gradient-to-r from-purple-500/10 via-purple-500/5 to-transparent p-4 shadow-md">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/20 text-purple-400 shrink-0">
+              <Sparkles size={20} className="animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-xs uppercase tracking-wider text-purple-400">
+                  TDD Pipeline Handoff Active
+                </span>
+                <span className="rounded-full bg-purple-500/20 border border-purple-500/30 px-2 py-0.5 font-mono text-[10px] font-bold text-purple-300">
+                  Workflow #{workflowParam.slice(0, 8)}
+                </span>
+                {autorunParam && (
+                  <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-300 flex items-center gap-1 animate-pulse">
+                    <Zap size={11} className="text-emerald-400" />
+                    Auto-Launch Enabled
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
+                Executing remaining verification, visual snapshots, and evidence synchronization for this workflow. Saving to Jira will automatically finalize the workflow run.
+              </p>
+            </div>
+          </div>
+
+          <Link
+            to={`/app/workflows/${workflowParam}`}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-purple-500/30 bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 px-3 py-1.5 text-xs font-semibold transition-colors"
+          >
+            <span>← Return to Workflow</span>
+          </Link>
+        </div>
+      )}
+
       {/* Target Base URL Host Configuration */}
       <Card className="border-[var(--color-border-orange)]/30 bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-surface-elevated)]/40 p-4 shadow-sm">
         <div className="space-y-2">
@@ -456,6 +506,8 @@ export function ApiExecutorPage() {
           pingResult={pingResult}
           onPing={handlePing}
           pinging={pinging}
+          workflowId={workflowParam || undefined}
+          autoRun={autorunParam}
         />
       </div>
 

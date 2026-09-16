@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Bot,
@@ -32,6 +32,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { PostmanSimulatorModal } from "./PostmanSimulatorModal";
 import { JiraSaveConfirmationModal } from "./JiraSaveConfirmationModal";
+import { HostPromptModal } from "./HostPromptModal";
 import type { Project, Story, AcceptanceCriterion } from "@/types";
 
 function extractEndpointsFromCollection(col: any): Array<{ method: string; path: string; name: string; expected: number }> {
@@ -88,6 +89,71 @@ function extractEndpointsFromCollection(col: any): Array<{ method: string; path:
   return results;
 }
 
+function extractBaseUrlFromCollection(col: any): string | null {
+  if (!col) return null;
+
+  // 1. Check collection variables: keys like baseUrl, base_url, host, apiUrl, url, etc.
+  if (Array.isArray(col.variable)) {
+    for (const v of col.variable) {
+      if (!v || !v.key || typeof v.value !== "string") continue;
+      const k = v.key.trim().toLowerCase();
+      if (["baseurl", "base_url", "host", "apiurl", "api_url", "url", "server", "domain"].includes(k)) {
+        let val = v.value.trim();
+        if (val) {
+          if (!val.startsWith("http://") && !val.startsWith("https://") && /^[a-zA-Z0-9\.\-]+:\d+/.test(val)) {
+            val = `http://${val}`;
+          }
+          if (val.startsWith("http://") || val.startsWith("https://")) {
+            return val.replace(/\/+$/, "");
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Scan collection requests for concrete URLs
+  const findUrlInItems = (items: any[]): string | null => {
+    if (!Array.isArray(items)) return null;
+    for (const item of items) {
+      if (!item) continue;
+      if (item.item && Array.isArray(item.item)) {
+        const found = findUrlInItems(item.item);
+        if (found) return found;
+      } else if (item.request) {
+        const req = item.request;
+        let rawUrl = "";
+        if (typeof req === "string") {
+          rawUrl = req;
+        } else if (req.url) {
+          if (typeof req.url === "string") {
+            rawUrl = req.url;
+          } else if (req.url.raw) {
+            rawUrl = req.url.raw;
+          } else if (req.url.protocol && req.url.host) {
+            const proto = String(req.url.protocol).replace(/:$/, "");
+            const host = Array.isArray(req.url.host) ? req.url.host.join(".") : String(req.url.host);
+            const port = req.url.port ? `:${req.url.port}` : "";
+            rawUrl = `${proto}://${host}${port}`;
+          }
+        }
+
+        if (rawUrl && !rawUrl.startsWith("{{") && (rawUrl.startsWith("http://") || rawUrl.startsWith("https://"))) {
+          try {
+            const parsed = new URL(rawUrl);
+            return parsed.origin;
+          } catch {
+            const match = rawUrl.match(/^(https?:\/\/[^\/\s]+)/i);
+            if (match) return match[1].replace(/\/+$/, "");
+          }
+        }
+      }
+    }
+    return null;
+  };
+
+  return findUrlInItems(col.item);
+}
+
 interface AutonomousAgentWorkspaceProps {
   projects: Project[];
   selectedProjectUuid: string;
@@ -100,6 +166,8 @@ interface AutonomousAgentWorkspaceProps {
   pingResult: { reachable: boolean; latency_ms?: number; status_code?: number; error?: string } | null;
   onPing: () => Promise<void>;
   pinging: boolean;
+  workflowId?: string;
+  autoRun?: boolean;
 }
 
 const SESSION_EVIDENCE_KEY = "agent24_last_autonomous_evidence";
@@ -113,7 +181,10 @@ export function AutonomousAgentWorkspace({
   selectedStoryUuid,
   onSelectStory,
   baseUrl,
+  onSetBaseUrl,
   pingResult,
+  workflowId,
+  autoRun,
 }: AutonomousAgentWorkspaceProps) {
   // Autonomous execution states
   const [isRunning, setIsRunning] = useState(false);
@@ -129,6 +200,21 @@ export function AutonomousAgentWorkspace({
   const [copiedChecksum, setCopiedChecksum] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
 
+  // Auto-launch guard ref for automated pipeline handoff
+  const hasAutoLaunchedRef = useRef(false);
+
+  // Clear stale cached session evidence when autoRun is active
+  useEffect(() => {
+    if (autoRun) {
+      try {
+        sessionStorage.removeItem(SESSION_EVIDENCE_KEY);
+        sessionStorage.removeItem(SESSION_JIRA_SYNC_KEY);
+      } catch {}
+      setEvidence(null);
+      setJiraSyncResult(null);
+    }
+  }, [autoRun]);
+
   // Collection management
   const [sampleCollections, setSampleCollections] = useState<any[]>([]);
   const [selectedSampleId, setSelectedSampleId] = useState<string>("auth-user-service");
@@ -141,6 +227,9 @@ export function AutonomousAgentWorkspace({
 
   // Jira Story Save Confirmation Modal State
   const [isJiraModalOpen, setIsJiraModalOpen] = useState(false);
+
+  // Target API Host Required prompt modal state
+  const [isHostPromptOpen, setIsHostPromptOpen] = useState(false);
   const [jiraSyncResult, setJiraSyncResult] = useState<any | null>(() => {
     try {
       const saved = sessionStorage.getItem(SESSION_JIRA_SYNC_KEY);
@@ -261,11 +350,37 @@ export function AutonomousAgentWorkspace({
     }
   }, [selectedStoryDetails, sampleCollections]);
 
+  // Auto-extract base URL from active Postman collection
+  useEffect(() => {
+    let col: any = null;
+    if (collectionSource === "sample") {
+      const sample = sampleCollections.find((c) => c.id === selectedSampleId);
+      col = sample?.collection;
+    } else if (collectionSource === "paste" && customCollectionJson.trim()) {
+      try {
+        col = JSON.parse(customCollectionJson);
+      } catch {}
+    }
+
+    if (col) {
+      const detected = extractBaseUrlFromCollection(col);
+      if (detected) {
+        onSetBaseUrl(detected);
+      }
+    }
+  }, [selectedSampleId, sampleCollections, collectionSource, customCollectionJson, onSetBaseUrl]);
+
   // Launch Autonomous Verification Agent
-  const handleLaunchAgent = async () => {
-    if (!baseUrl.trim()) {
-      setStatusMsg({ type: "error", text: "Target API Host / Base URL is required." });
+  const handleLaunchAgent = async (overrideBaseUrl?: string | React.MouseEvent) => {
+    const rawOverride = typeof overrideBaseUrl === "string" ? overrideBaseUrl : undefined;
+    const targetHost = (rawOverride || baseUrl).trim();
+    if (!targetHost) {
+      setIsHostPromptOpen(true);
       return;
+    }
+
+    if (rawOverride && rawOverride !== baseUrl) {
+      onSetBaseUrl(rawOverride);
     }
 
     // If Visual Postman mode is enabled, open interactive runner modal
@@ -308,7 +423,7 @@ export function AutonomousAgentWorkspace({
 
     try {
       const res = await apiExecutorApi.runAutonomousAgent({
-        base_url: baseUrl.trim(),
+        base_url: targetHost,
         collection_json: chosenCollection,
         collection_name: chosenColName,
         story_uuid: selectedStoryUuid || undefined,
@@ -333,6 +448,65 @@ export function AutonomousAgentWorkspace({
       setIsRunning(false);
     }
   };
+
+  // Auto-launch autonomous agent when autorun=true and story details are ready
+  // IF baseUrl exists in Postman collection -> auto-launch!
+  // IF NOT in Postman collection -> ask user first via HostPromptModal before launch!
+  useEffect(() => {
+    if (
+      autoRun &&
+      !hasAutoLaunchedRef.current &&
+      !isRunning &&
+      selectedStoryUuid &&
+      !loadingStoryDetails &&
+      sampleCollections.length > 0
+    ) {
+      // Look up active collection
+      let activeCol: any = null;
+      if (collectionSource === "sample") {
+        const sample = sampleCollections.find((c) => c.id === selectedSampleId);
+        activeCol = sample?.collection;
+      } else if (collectionSource === "paste" && customCollectionJson.trim()) {
+        try {
+          activeCol = JSON.parse(customCollectionJson);
+        } catch {}
+      }
+
+      // Check if target host is defined in Postman collection
+      const detectedUrl = extractBaseUrlFromCollection(activeCol) || baseUrl.trim();
+
+      if (detectedUrl) {
+        hasAutoLaunchedRef.current = true;
+        if (!baseUrl) {
+          onSetBaseUrl(detectedUrl);
+        }
+        setStatusMsg({
+          type: "info",
+          text: `⚡ Target API host detected from Postman collection (${detectedUrl}). Launching verification...`,
+        });
+        const timer = setTimeout(() => {
+          handleLaunchAgent(detectedUrl);
+        }, 700);
+        return () => clearTimeout(timer);
+      } else {
+        // Target host is NOT defined in Postman collection:
+        // Do NOT launch blindly. First ask user to provide/confirm host before launch!
+        hasAutoLaunchedRef.current = true;
+        setIsHostPromptOpen(true);
+      }
+    }
+  }, [
+    autoRun,
+    isRunning,
+    selectedStoryUuid,
+    loadingStoryDetails,
+    sampleCollections,
+    selectedSampleId,
+    collectionSource,
+    customCollectionJson,
+    baseUrl,
+    onSetBaseUrl,
+  ]);
 
   // Submit ALM Write-back
   const handleAlmSubmit = async () => {
@@ -451,7 +625,7 @@ export function AutonomousAgentWorkspace({
             )}
             <Button
               variant="primary"
-              onClick={handleLaunchAgent}
+              onClick={() => handleLaunchAgent()}
               loading={isRunning}
               disabled={isRunning}
               className="shadow-md shadow-[var(--color-primary)]/20 px-5 py-2.5 font-semibold text-xs flex items-center gap-2 rounded-xl"
@@ -1569,9 +1743,34 @@ export function AutonomousAgentWorkspace({
         evidence={evidence}
         defaultIssueKey={selectedStoryDetails?.external_key || ""}
         storyTitle={selectedStoryDetails?.title}
+        workflowId={workflowId}
+        projectName={
+          projects.find((p) => p.uuid === selectedProjectUuid)?.name ||
+          (selectedStoryDetails as any)?.project_name ||
+          evidence?.project_name
+        }
         onSyncSuccess={(res) => {
           setJiraSyncResult(res);
         }}
+      />
+
+      {/* 6. Target Host Prompt Modal (Prompt user first if host is missing from Postman) */}
+      <HostPromptModal
+        isOpen={isHostPromptOpen}
+        onClose={() => setIsHostPromptOpen(false)}
+        onConfirm={(confirmedHost) => {
+          onSetBaseUrl(confirmedHost);
+          setIsHostPromptOpen(false);
+          handleLaunchAgent(confirmedHost);
+        }}
+        storyKey={selectedStoryDetails?.external_key}
+        storyTitle={selectedStoryDetails?.title}
+        collectionName={
+          collectionSource === "sample"
+            ? sampleCollections.find((c) => c.id === selectedSampleId)?.name || "Postman Collection"
+            : "Custom Collection"
+        }
+        initialHost={baseUrl}
       />
     </div>
   );

@@ -38,6 +38,8 @@ export interface JiraEvidenceSyncPayload {
   evidence_key?: string;
   docx_path?: string;
   evidence_data?: any;
+  project_name?: string;
+  workflow_id?: string;
   approval_comment?: string;
   approver_name?: string;
 }
@@ -47,6 +49,8 @@ export interface JiraEvidenceSyncResponse {
   issue_key: string;
   jira_url: string;
   comment_id: string;
+  workflow_completed?: boolean;
+  workflow_id?: string;
   attachment?: {
     id: string;
     filename: string;

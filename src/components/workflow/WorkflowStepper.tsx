@@ -15,7 +15,10 @@ export function WorkflowStepper({
   onReject?: () => void;
   isSubmitting?: boolean;
 }) {
-  const currentIdx = WORKFLOW_STAGES.indexOf(current);
+  const currentIdx =
+    current === "POSTMAN_COLLECTION_REQUIRED"
+      ? WORKFLOW_STAGES.indexOf("CODE_VALIDATION")
+      : WORKFLOW_STAGES.indexOf(current);
   const isCompleted =
     status === "COMPLETED" ||
     status === "APPROVED" ||
@@ -135,6 +138,10 @@ export function WorkflowStepper({
                 ) : isCheckpoint ? (
                   <span className="shrink-0 rounded bg-[var(--color-surface-elevated)] border border-[var(--color-border)] px-1 py-0.2 text-[9px] font-medium text-[var(--color-primary)]">
                     Gate
+                  </span>
+                ) : (stage === "EVIDENCE_GENERATION" || stage === "ALM_ATTACHMENT") ? (
+                  <span className="shrink-0 rounded bg-blue-500/10 border border-blue-500/20 px-1 py-0.2 text-[8px] font-mono text-blue-400">
+                    Executor
                   </span>
                 ) : null}
               </div>

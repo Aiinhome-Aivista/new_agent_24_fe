@@ -1,4 +1,4 @@
-import { apiClient, unwrap } from "./apiClient";
+import { apiClient, unwrap, getAccessToken } from "./apiClient";
 import type { WorkflowRun, WorkflowSLA, AlmPreview } from "@/types";
 
 export const workflowApi = {
@@ -24,7 +24,33 @@ export const workflowApi = {
     unwrap<{ sla: WorkflowSLA }>(apiClient.get(`/workflows/${id}/sla`)),
   almPreview: (id: string, provider = "azure_devops") =>
     unwrap<{ preview: AlmPreview }>(apiClient.get(`/workflows/${id}/alm-preview?provider=${provider}`)),
-  getEvidenceDownloadUrl: (id: string, format = "html") =>
-    `/api/v1/workflows/${id}/evidence/download?format=${format}`,
+  getEvidenceDownloadUrl: (id: string, format = "html", inline = false) => {
+    const token = getAccessToken();
+    const tokenParam = token ? `&token=${encodeURIComponent(token)}` : "";
+    return `/api/v1/workflows/${id}/evidence/download?format=${format}${inline ? "&inline=true" : ""}${tokenParam}`;
+  },
+  getEvidenceHtmlContent: (id: string) =>
+    apiClient
+      .get(`/workflows/${id}/evidence/download?format=html&inline=true`, {
+        responseType: "text",
+        transformResponse: [(data) => data],
+      })
+      .then((res) => (typeof res.data === "string" ? res.data : JSON.stringify(res.data))),
+  providePostman: (id: string, payload: FormData | { collection?: any; collection_json?: string; file_name?: string }) =>
+    unwrap<{
+      workflow_id: string;
+      status: string;
+      current_stage: string;
+      task_id?: string;
+      resume_status?: string;
+      endpoints_count: number;
+      collection_name: string;
+    }>(
+      payload instanceof FormData
+        ? apiClient.post(`/workflows/${id}/provide-postman`, payload, {
+            headers: { "Content-Type": "multipart/form-data" },
+          })
+        : apiClient.post(`/workflows/${id}/provide-postman`, payload)
+    ),
 };
 

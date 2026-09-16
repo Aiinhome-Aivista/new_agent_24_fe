@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ShieldCheck,
@@ -26,6 +27,8 @@ interface JiraSaveConfirmationModalProps {
   evidence: any;
   defaultIssueKey?: string;
   storyTitle?: string;
+  projectName?: string;
+  workflowId?: string;
   onSyncSuccess?: (result: JiraEvidenceSyncResponse) => void;
 }
 
@@ -35,6 +38,8 @@ export function JiraSaveConfirmationModal({
   evidence,
   defaultIssueKey,
   storyTitle,
+  projectName,
+  workflowId,
   onSyncSuccess,
 }: JiraSaveConfirmationModalProps) {
   const [jiraStatus, setJiraStatus] = useState<JiraStatusResponse | null>(null);
@@ -97,6 +102,17 @@ export function JiraSaveConfirmationModal({
       .finally(() => setLoadingStatus(false));
   }, [isOpen]);
 
+  const previewAttachmentName = useMemo(() => {
+    const rawProj = (projectName || evidence?.project_name || "").trim();
+    const cleanProj = rawProj ? rawProj.replace(/[^\w]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "") : "";
+    const evKey = evidence?.evidence_key || "EVID-AUTO";
+    const nowUtc = new Date();
+    const nowIst = new Date(nowUtc.getTime() + (5.5 * 60 * 60 * 1000));
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const timeIst = `${nowIst.getUTCFullYear()}-${pad(nowIst.getUTCMonth() + 1)}-${pad(nowIst.getUTCDate())}_${pad(nowIst.getUTCHours())}-${pad(nowIst.getUTCMinutes())}-${pad(nowIst.getUTCSeconds())}_IST`;
+    return cleanProj ? `${cleanProj}_${evKey}_${timeIst}.docx` : `${evKey}_${timeIst}.docx`;
+  }, [projectName, evidence]);
+
   if (!isOpen || !evidence) return null;
 
   const handleCopySeal = () => {
@@ -123,6 +139,8 @@ export function JiraSaveConfirmationModal({
         evidence_key: evidence.evidence_key,
         docx_path: evidence.docx_path,
         evidence_data: evidence,
+        project_name: projectName || evidence?.project_name,
+        workflow_id: workflowId || undefined,
         approver_name: approverName.trim() || "QA Lead Reviewer",
         approval_comment: approvalComment.trim(),
       });
@@ -227,6 +245,25 @@ export function JiraSaveConfirmationModal({
                   )}
                 </div>
 
+                {/* Connected Workflow Auto-Completion Banner */}
+                {(workflowId || syncResult.workflow_completed) && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-purple-500/10 border border-purple-500/30 p-3 text-xs">
+                    <div className="flex items-center gap-2 text-purple-300">
+                      <Sparkles size={16} className="text-purple-400 shrink-0" />
+                      <span>
+                        Connected Workflow Run <strong>#{workflowId ? workflowId.slice(0, 8) : syncResult.workflow_id?.slice(0, 8)}</strong> has been marked <strong>COMPLETED & DONE</strong>.
+                      </span>
+                    </div>
+                    <Link
+                      to={`/app/workflows/${workflowId || syncResult.workflow_id}`}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 text-[11px] font-bold shadow transition-colors"
+                    >
+                      <span>Return to Workflow</span>
+                      <ExternalLink size={13} />
+                    </Link>
+                  </div>
+                )}
+
                 <div className="pt-2 flex items-center justify-between">
                   <a
                     href={syncResult.jira_url || directJiraStoryUrl}
@@ -311,6 +348,17 @@ export function JiraSaveConfirmationModal({
                     <div className="font-mono text-[10px] text-[var(--color-text-primary)] truncate">
                       {evidence.sha256_seal ? evidence.sha256_seal.slice(0, 16) + "..." : "Deterministic"}
                     </div>
+                  </div>
+                </div>
+
+                {/* Attachment Filename Preview (Project Name + IST Timestamp) */}
+                <div className="flex items-center gap-2 rounded-xl bg-blue-500/10 border border-blue-500/20 px-3 py-2 text-[11px]">
+                  <FileText size={14} className="text-blue-600 shrink-0" />
+                  <div className="truncate">
+                    <span className="font-semibold text-[var(--color-text-secondary)]">Attachment Name: </span>
+                    <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
+                      {previewAttachmentName}
+                    </span>
                   </div>
                 </div>
 

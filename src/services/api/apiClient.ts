@@ -5,14 +5,19 @@ const BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
 
 export const apiClient: AxiosInstance = axios.create({ baseURL: BASE, timeout: 3000000 });
 
-let accessToken: string | null = null;
+let accessToken: string | null = typeof window !== "undefined" ? localStorage.getItem("tdd-access") : null;
 
 export function setAccessToken(token: string | null) {
   accessToken = token;
+  if (token) {
+    localStorage.setItem("tdd-access", token);
+  } else {
+    localStorage.removeItem("tdd-access");
+  }
 }
 
 export function getAccessToken() {
-  return accessToken;
+  return accessToken || (typeof window !== "undefined" ? localStorage.getItem("tdd-access") : null);
 }
 
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
