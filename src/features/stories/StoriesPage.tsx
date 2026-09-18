@@ -9,8 +9,11 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Loading, ErrorState } from "@/components/ui/Loading";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { CreateStoryModal } from "./CreateStoryModal";
+import { ViewStoryModal } from "./ViewStoryModal";
+import { downloadStory } from "./storyUtils";
+import { useToast } from "@/contexts/ToastContext";
 import type { Story, Project } from "@/types";
-import { Plus, ArrowRight, GitBranch, Trash2, AlertTriangle, Loader2 } from "lucide-react";
+import { Plus, ArrowRight, GitBranch, Trash2, AlertTriangle, Loader2, Eye, Download } from "lucide-react";
 
 export function StoriesPage() {
   const [params, setParams] = useSearchParams();
@@ -20,10 +23,26 @@ export function StoriesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const { notify } = useToast();
   const [createOpen, setCreateOpen] = useState(false);
+  const [viewStory, setViewStory] = useState<Story | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [storyToDelete, setStoryToDelete] = useState<Story | null>(null);
   const [deletingStory, setDeletingStory] = useState(false);
   const [deleteStoryError, setDeleteStoryError] = useState<string | null>(null);
+
+  const handleQuickDownload = async (story: Story, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDownloadingId(story.uuid);
+    try {
+      await downloadStory(story, "md");
+      notify("success", `Downloaded story ${story.external_key || ""} as Markdown`);
+    } catch (err: any) {
+      notify("error", `Failed to download story: ${err?.message || "Error"}`);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -125,15 +144,27 @@ export function StoriesPage() {
             <Card key={s.uuid} className="flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors hover:border-[var(--color-border-orange)]">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="font-mono text-xs font-semibold text-[var(--color-primary)] bg-[var(--color-primary)]/10 px-2 py-0.5 rounded">
+                  <button
+                    type="button"
+                    onClick={() => setViewStory(s)}
+                    className="font-mono text-xs font-semibold text-[var(--color-primary)] bg-[var(--color-primary)]/10 hover:bg-[var(--color-primary)]/20 px-2 py-0.5 rounded transition-colors cursor-pointer"
+                    title="View Story & Acceptance Criteria"
+                  >
                     {s.external_key}
-                  </span>
+                  </button>
                   {s.project_key && (
                     <span className="text-xs font-mono text-[var(--color-text-secondary)] border border-[var(--color-border)] px-1.5 py-0.5 rounded">
                       {s.project_key}
                     </span>
                   )}
-                  <span className="text-sm font-semibold text-[var(--color-text-primary)]">{s.title}</span>
+                  <button
+                    type="button"
+                    onClick={() => setViewStory(s)}
+                    className="text-sm font-semibold text-[var(--color-text-primary)] hover:text-[var(--color-primary)] transition-colors text-left cursor-pointer"
+                    title="View Story & Acceptance Criteria"
+                  >
+                    {s.title}
+                  </button>
                 </div>
                 {s.description && (
                   <p className="line-clamp-2 text-xs text-[var(--color-text-secondary)] mb-2">
@@ -144,6 +175,14 @@ export function StoriesPage() {
                   <span>{s.sprint || "Sprint 1"}</span>
                   <span>·</span>
                   <span>Coverage: {Number(s.coverage_pct)}%</span>
+                  {(s.ac_count !== undefined || s.acceptance_criteria) && (
+                    <>
+                      <span>·</span>
+                      <span className="font-medium text-[var(--color-primary)]">
+                        {s.ac_count ?? s.acceptance_criteria?.length ?? 0} Acceptance Criteria
+                      </span>
+                    </>
+                  )}
                   {s.workflow_status && (
                     <>
                       <span>·</span>
@@ -155,7 +194,32 @@ export function StoriesPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2.5 shrink-0">
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  variant="secondary"
+                  onClick={() => setViewStory(s)}
+                  className="flex items-center gap-1.5 text-xs py-1 px-2.5 h-8 font-medium"
+                  title="View Story & Acceptance Criteria"
+                >
+                  <Eye size={13} className="text-[var(--color-primary)]" />
+                  <span>View</span>
+                </Button>
+
+                <Button
+                  variant="secondary"
+                  onClick={(e) => handleQuickDownload(s, e)}
+                  disabled={downloadingId === s.uuid}
+                  className="flex items-center gap-1.5 text-xs py-1 px-2.5 h-8 font-medium"
+                  title="Download Story as Markdown (.md)"
+                >
+                  {downloadingId === s.uuid ? (
+                    <Loader2 size={13} className="animate-spin text-[var(--color-primary)]" />
+                  ) : (
+                    <Download size={13} />
+                  )}
+                  <span className="hidden sm:inline">Download</span>
+                </Button>
+
                 <StatusBadge status={s.status.toUpperCase()} />
                 {s.workflow_id ? (
                   <Link
@@ -254,6 +318,12 @@ export function StoriesPage() {
         defaultProjectUuid={selectedProject}
         onClose={() => setCreateOpen(false)}
         onSuccess={loadData}
+      />
+
+      <ViewStoryModal
+        isOpen={Boolean(viewStory)}
+        story={viewStory}
+        onClose={() => setViewStory(null)}
       />
     </div>
   );

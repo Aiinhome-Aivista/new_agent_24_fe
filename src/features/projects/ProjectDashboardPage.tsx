@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Loading, ErrorState } from "@/components/ui/Loading";
 import { CreateStoryModal } from "@/features/stories/CreateStoryModal";
+import { ViewStoryModal } from "@/features/stories/ViewStoryModal";
+import { downloadStory } from "@/features/stories/storyUtils";
 import { useToast } from "@/contexts/ToastContext";
 import type { Project, Story, ApiContract, KnowledgeDocument, KnowledgeChunk, GitConnectionResult } from "@/types";
 import {
@@ -36,6 +38,8 @@ import {
   Loader2,
   Trash2,
   AlertTriangle,
+  Eye,
+  Download,
 } from "lucide-react";
 
 const healthColor: Record<string, string> = {
@@ -61,11 +65,26 @@ export function ProjectDashboardPage() {
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
   const [createStoryOpen, setCreateStoryOpen] = useState(false);
+  const [viewStory, setViewStory] = useState<Story | null>(null);
+  const [downloadingStoryId, setDownloadingStoryId] = useState<string | null>(null);
   const [testingGit, setTestingGit] = useState(false);
   const [gitResult, setGitResult] = useState<GitConnectionResult | null>(null);
   const [storyToDelete, setStoryToDelete] = useState<Story | null>(null);
   const [deletingStory, setDeletingStory] = useState(false);
   const [deleteStoryError, setDeleteStoryError] = useState<string | null>(null);
+
+  const handleQuickDownloadStory = async (story: Story, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDownloadingStoryId(story.uuid);
+    try {
+      await downloadStory(story, "md");
+      notify("success", `Downloaded story ${story.external_key || ""} as Markdown`);
+    } catch (err: any) {
+      notify("error", `Failed to download story: ${err?.message || "Error"}`);
+    } finally {
+      setDownloadingStoryId(null);
+    }
+  };
 
   const handleDeleteStory = async () => {
     if (!storyToDelete) return;
@@ -657,11 +676,25 @@ export function ProjectDashboardPage() {
             ) : (
               <div className="grid gap-3">
                 {stories.map((s) => (
-                  <Card key={s.uuid} className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4">
-                    <div className="space-y-1">
+                  <Card key={s.uuid} className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 hover:border-[var(--color-border-orange)] transition-colors">
+                    <div className="space-y-1 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-[var(--color-primary)]">{s.external_key}</span>
-                        <h4 className="font-display font-semibold text-[var(--color-text-primary)] text-sm">{s.title}</h4>
+                        <button
+                          type="button"
+                          onClick={() => setViewStory(s)}
+                          className="font-mono text-xs font-bold text-[var(--color-primary)] bg-[var(--color-primary)]/10 hover:bg-[var(--color-primary)]/20 px-2 py-0.5 rounded transition-colors cursor-pointer"
+                          title="View Story & Acceptance Criteria"
+                        >
+                          {s.external_key}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setViewStory(s)}
+                          className="font-display font-semibold text-[var(--color-text-primary)] hover:text-[var(--color-primary)] text-sm transition-colors text-left cursor-pointer"
+                          title="View Story & Acceptance Criteria"
+                        >
+                          {s.title}
+                        </button>
                       </div>
                       {s.description && (
                         <p className="text-xs text-[var(--color-text-secondary)] line-clamp-2">{s.description}</p>
@@ -670,16 +703,43 @@ export function ProjectDashboardPage() {
                         <span>Sprint: {s.sprint || "Sprint 1"}</span>
                         <span>·</span>
                         <span>Coverage: {Math.round(s.coverage_pct || 0)}%</span>
-                        {s.acceptance_criteria && (
+                        {(s.ac_count !== undefined || s.acceptance_criteria) && (
                           <>
                             <span>·</span>
-                            <span>{s.acceptance_criteria.length} Acceptance Criteria</span>
+                            <span className="font-medium text-[var(--color-primary)]">
+                              {s.ac_count ?? s.acceptance_criteria?.length ?? 0} Acceptance Criteria
+                            </span>
                           </>
                         )}
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        variant="secondary"
+                        onClick={() => setViewStory(s)}
+                        className="flex items-center gap-1.5 text-xs py-1 px-2.5 h-8 font-medium"
+                        title="View Story & Acceptance Criteria"
+                      >
+                        <Eye size={13} className="text-[var(--color-primary)]" />
+                        <span>View</span>
+                      </Button>
+
+                      <Button
+                        variant="secondary"
+                        onClick={(e) => handleQuickDownloadStory(s, e)}
+                        disabled={downloadingStoryId === s.uuid}
+                        className="flex items-center gap-1.5 text-xs py-1 px-2.5 h-8 font-medium"
+                        title="Download Story as Markdown (.md)"
+                      >
+                        {downloadingStoryId === s.uuid ? (
+                          <Loader2 size={13} className="animate-spin text-[var(--color-primary)]" />
+                        ) : (
+                          <Download size={13} />
+                        )}
+                        <span className="hidden sm:inline">Download</span>
+                      </Button>
+
                       {s.workflow_id ? (
                         <Button
                           onClick={() => navigate(`/app/workflows/${s.workflow_id}${project?.uuid ? `?project=${project.uuid}` : ""}`)}
@@ -963,11 +1023,18 @@ export function ProjectDashboardPage() {
         <CreateStoryModal
           isOpen={createStoryOpen}
           projects={project ? [project] : []}
-          defaultProjectUuid={project.uuid}
+          defaultProjectUuid={project?.uuid}
           onClose={() => setCreateStoryOpen(false)}
           onSuccess={loadProjectData}
         />
       )}
+
+      {/* View Story Modal */}
+      <ViewStoryModal
+        isOpen={Boolean(viewStory)}
+        story={viewStory}
+        onClose={() => setViewStory(null)}
+      />
     </div>
   );
 }

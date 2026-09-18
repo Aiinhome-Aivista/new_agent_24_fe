@@ -59,6 +59,7 @@ export interface Story {
   project_key?: string;
   project_name?: string;
   acceptance_criteria?: AcceptanceCriterion[];
+  ac_count?: number;
   workflow_id?: string;
   workflow_status?: string;
   workflow_stage?: string;
