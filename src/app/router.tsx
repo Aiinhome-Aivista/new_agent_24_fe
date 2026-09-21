@@ -1,45 +1,61 @@
+import { lazy, Suspense } from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/routes/ProtectedRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { LandingPage } from "@/features/auth/LandingPage";
-import { LoginPage } from "@/features/auth/LoginPage";
-import { DashboardPage } from "@/features/dashboard/DashboardPage";
-import { ProjectsPage } from "@/features/projects/ProjectsPage";
-import { ProjectDashboardPage } from "@/features/projects/ProjectDashboardPage";
-import { KnowledgePage } from "@/features/knowledge/KnowledgePage";
-import { StoriesPage } from "@/features/stories/StoriesPage";
-import { WorkflowsPage } from "@/features/workflow-runs/WorkflowsPage";
-import { WorkflowDetailPage } from "@/features/workflow-runs/WorkflowDetailPage";
-import { NewWorkflowPage } from "@/features/test-generation/NewWorkflowPage";
-import { AgentMonitorPage } from "@/features/agent-monitor/AgentMonitorPage";
-import { ApprovalsPage } from "@/features/approvals/ApprovalsPage";
-import { AuditPage } from "@/features/audit/AuditPage";
-import { SettingsPage } from "@/features/settings/SettingsPage";
-import { IntegrationsPage } from "@/features/integrations/IntegrationsPage";
-import { ApiExecutorPage } from "@/features/api-executor/ApiExecutorPage";
+import { Loading } from "@/components/ui/Loading";
+
+// Lazy-loaded route components for code-splitting and faster initial page loads
+const LandingPage = lazy(() => import("@/features/auth/LandingPage").then((m) => ({ default: m.LandingPage })));
+const LoginPage = lazy(() => import("@/features/auth/LoginPage").then((m) => ({ default: m.LoginPage })));
+const DashboardPage = lazy(() => import("@/features/dashboard/DashboardPage").then((m) => ({ default: m.DashboardPage })));
+const ProjectsPage = lazy(() => import("@/features/projects/ProjectsPage").then((m) => ({ default: m.ProjectsPage })));
+const ProjectDashboardPage = lazy(() => import("@/features/projects/ProjectDashboardPage").then((m) => ({ default: m.ProjectDashboardPage })));
+const KnowledgePage = lazy(() => import("@/features/knowledge/KnowledgePage").then((m) => ({ default: m.KnowledgePage })));
+const StoriesPage = lazy(() => import("@/features/stories/StoriesPage").then((m) => ({ default: m.StoriesPage })));
+const WorkflowsPage = lazy(() => import("@/features/workflow-runs/WorkflowsPage").then((m) => ({ default: m.WorkflowsPage })));
+const WorkflowDetailPage = lazy(() => import("@/features/workflow-runs/WorkflowDetailPage").then((m) => ({ default: m.WorkflowDetailPage })));
+const NewWorkflowPage = lazy(() => import("@/features/test-generation/NewWorkflowPage").then((m) => ({ default: m.NewWorkflowPage })));
+const AgentMonitorPage = lazy(() => import("@/features/agent-monitor/AgentMonitorPage").then((m) => ({ default: m.AgentMonitorPage })));
+const ApprovalsPage = lazy(() => import("@/features/approvals/ApprovalsPage").then((m) => ({ default: m.ApprovalsPage })));
+const AuditPage = lazy(() => import("@/features/audit/AuditPage").then((m) => ({ default: m.AuditPage })));
+const SettingsPage = lazy(() => import("@/features/settings/SettingsPage").then((m) => ({ default: m.SettingsPage })));
+const IntegrationsPage = lazy(() => import("@/features/integrations/IntegrationsPage").then((m) => ({ default: m.IntegrationsPage })));
+const ApiExecutorPage = lazy(() => import("@/features/api-executor/ApiExecutorPage").then((m) => ({ default: m.ApiExecutorPage })));
+
+function withSuspense(Component: React.ComponentType) {
+  return (
+    <Suspense fallback={<Loading />}>
+      <Component />
+    </Suspense>
+  );
+}
 
 export const router = createBrowserRouter([
-  { path: "/", element: <LandingPage /> },
-  { path: "/login", element: <LoginPage /> },
+  { path: "/", element: withSuspense(LandingPage) },
+  { path: "/login", element: withSuspense(LoginPage) },
   {
     path: "/app",
-    element: <ProtectedRoute><AppLayout /></ProtectedRoute>,
+    element: (
+      <ProtectedRoute>
+        <AppLayout />
+      </ProtectedRoute>
+    ),
     children: [
       { index: true, element: <Navigate to="/app/dashboard" replace /> },
-      { path: "dashboard", element: <DashboardPage /> },
-      { path: "projects", element: <ProjectsPage /> },
-      { path: "projects/:uuid", element: <ProjectDashboardPage /> },
-      { path: "knowledge", element: <KnowledgePage /> },
-      { path: "stories", element: <StoriesPage /> },
-      { path: "workflows", element: <WorkflowsPage /> },
-      { path: "workflows/:id", element: <WorkflowDetailPage /> },
-      { path: "new-workflow", element: <NewWorkflowPage /> },
-      { path: "api-executor", element: <ApiExecutorPage /> },
-      { path: "agents", element: <AgentMonitorPage /> },
-      { path: "approvals", element: <ApprovalsPage /> },
-      { path: "audit", element: <AuditPage /> },
-      { path: "settings", element: <SettingsPage /> },
-      { path: "integrations", element: <IntegrationsPage /> },
+      { path: "dashboard", element: withSuspense(DashboardPage) },
+      { path: "projects", element: withSuspense(ProjectsPage) },
+      { path: "projects/:uuid", element: withSuspense(ProjectDashboardPage) },
+      { path: "knowledge", element: withSuspense(KnowledgePage) },
+      { path: "stories", element: withSuspense(StoriesPage) },
+      { path: "workflows", element: withSuspense(WorkflowsPage) },
+      { path: "workflows/:id", element: withSuspense(WorkflowDetailPage) },
+      { path: "new-workflow", element: withSuspense(NewWorkflowPage) },
+      { path: "api-executor", element: withSuspense(ApiExecutorPage) },
+      { path: "agents", element: withSuspense(AgentMonitorPage) },
+      { path: "approvals", element: withSuspense(ApprovalsPage) },
+      { path: "audit", element: withSuspense(AuditPage) },
+      { path: "settings", element: withSuspense(SettingsPage) },
+      { path: "integrations", element: withSuspense(IntegrationsPage) },
     ],
   },
 
