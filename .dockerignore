@@ -1,0 +1,42 @@
+# ==========================================
+# Agent-24 Frontend (.dockerignore)
+# Excludes development-only files from Docker build
+# ==========================================
+
+# Node Dependencies (freshly installed inside container via npm ci)
+node_modules/
+.pnp
+.pnp.js
+
+# Local build artifacts
+dist/
+
+# Unit Testing & Coverage
+coverage/
+vitest.config.ts
+
+# Git
+.git/
+.gitignore
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Docker files
+Dockerfile*
+.dockerignore
