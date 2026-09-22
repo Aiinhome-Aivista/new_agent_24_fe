@@ -89,6 +89,7 @@ export function WorkflowDetailPage() {
   const [coverageMatrix, setCoverageMatrix] = useState<CoverageMatrixItem[]>([]);
   const [generationSummary, setGenerationSummary] = useState<GenerationSummary | null>(null);
   const [contractGaps, setContractGaps] = useState<ContractGap[]>([]);
+  const [acApiCodeMapping, setAcApiCodeMapping] = useState<any[]>([]);
   const [evidenceList, setEvidenceList] = useState<EvidencePackage[]>([]);
   const [approvalsList, setApprovalsList] = useState<Approval[]>([]);
   const [executionRuns, setExecutionRuns] = useState<ExecutionRun[]>([]);
@@ -128,6 +129,7 @@ export function WorkflowDetailPage() {
   const [postmanPreviewEndpoints, setPostmanPreviewEndpoints] = useState<Array<{ method: string; path: string; name?: string }>>([]);
   const [isUploadingPostman, setIsUploadingPostman] = useState(false);
   const [postmanSuccessMsg, setPostmanSuccessMsg] = useState<string | null>(null);
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
   // Smart polling: stop continuous polling once workflow is finished, blocked, or paused at Human Checkpoints
   const isPausedOrDone = [
@@ -172,7 +174,7 @@ export function WorkflowDetailPage() {
 
       const [dRes, tRes, aRes, eRes, execRes, almRes, clRes] = await Promise.all([
         workflowApi.detail(id).catch(() => ({ workflow: null })),
-        testApi.forWorkflow(id).catch(() => ({ test_cases: [], coverage_matrix: [], generation_summary: undefined, contract_gaps: [] })),
+        testApi.forWorkflow(id).catch(() => ({ test_cases: [], coverage_matrix: [], generation_summary: undefined, contract_gaps: [], ac_api_code_mapping: [] })),
         approvalApi.forWorkflow(id).catch(() => ({ approvals: [] })),
         evidenceApi.forWorkflow(id).catch(() => ({ evidence: [] })),
         shouldFetchExec ? testApi.executions(id).catch(() => ({ executions: [] })) : Promise.resolve({ executions: [] }),
@@ -185,6 +187,7 @@ export function WorkflowDetailPage() {
         if (tRes.coverage_matrix) setCoverageMatrix(tRes.coverage_matrix);
         if (tRes.generation_summary) setGenerationSummary(tRes.generation_summary);
         if (tRes.contract_gaps) setContractGaps(tRes.contract_gaps);
+        if ((tRes as any).ac_api_code_mapping) setAcApiCodeMapping((tRes as any).ac_api_code_mapping);
       }
       setApprovalsList(aRes.approvals ?? []);
       setEvidenceList((eRes.evidence as EvidencePackage[]) ?? []);
@@ -442,7 +445,20 @@ export function WorkflowDetailPage() {
             Run ID: <span className="text-[var(--color-text-primary)]">{id}</span>
           </p>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={async () => {
+              setIsManualRefreshing(true);
+              await refreshData(true);
+              setIsManualRefreshing(false);
+            }}
+            className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-2.5 py-1 text-xs font-semibold text-[var(--color-text-secondary)] hover:text-white hover:border-[var(--color-primary)]/50 transition-all shadow-sm"
+            title="Refresh pipeline status"
+          >
+            <RefreshCw size={12} className={isManualRefreshing ? "animate-spin text-[var(--color-primary)]" : ""} />
+            <span>Refresh</span>
+          </button>
           <StatusBadge status={currentStatus} />
         </div>
       </div>
@@ -637,6 +653,7 @@ export function WorkflowDetailPage() {
               showCoverageMatrix={showCoverageMatrix}
               onToggleShowCoverageMatrix={() => setShowCoverageMatrix(!showCoverageMatrix)}
               contractGaps={contractGaps}
+              acApiCodeMapping={acApiCodeMapping}
               codeLogData={codeLogData}
               showCodeLog={showCodeLog}
               onToggleShowCodeLog={() => setShowCodeLog(!showCodeLog)}

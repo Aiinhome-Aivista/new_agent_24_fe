@@ -8,6 +8,7 @@ export const testApi = {
       coverage_matrix?: CoverageMatrixItem[];
       generation_summary?: GenerationSummary;
       contract_gaps?: ContractGap[];
+      ac_api_code_mapping?: any[];
     }>(apiClient.get(`/workflows/${id}/test-cases`)),
   setStatus: (uuid: string, status: string) =>
     unwrap(apiClient.post(`/test-cases/${uuid}/status`, { status })),

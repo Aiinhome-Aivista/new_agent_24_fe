@@ -575,7 +575,7 @@ export function WorkflowGovernanceCard({
 
             {/* Decision Buttons */}
             <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-[var(--color-border)] pt-3">
-              {(a.stage === "EVIDENCE_REVIEW" || a.stage === "ALM_APPROVAL" || a.stage === "ALM_ATTACHMENT" || a.stage === "TEST_REVIEW") ? (
+              {(a.stage === "EVIDENCE_REVIEW" || a.stage === "ALM_APPROVAL" || a.stage === "ALM_ATTACHMENT") ? (
                 <Link
                   to={apiExecutorHandoffUrl}
                   className="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 font-semibold transition-colors py-1"

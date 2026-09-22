@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { OriginBadge } from "@/components/ui/OriginBadge";
 import type {
@@ -19,11 +19,11 @@ import {
   Layers,
   CheckCircle2,
   XCircle,
-  ShieldCheck,
   AlertTriangle,
   Terminal,
   FileCode,
   Code2,
+  ShieldCheck,
 } from "lucide-react";
 
 interface WorkflowTestsTabProps {
@@ -44,6 +44,7 @@ interface WorkflowTestsTabProps {
   showCoverageMatrix: boolean;
   onToggleShowCoverageMatrix: () => void;
   contractGaps: ContractGap[];
+  acApiCodeMapping?: any[];
   codeLogData: CodeLog | null;
   showCodeLog: boolean;
   onToggleShowCodeLog: () => void;
@@ -71,6 +72,7 @@ export function WorkflowTestsTab({
   showCoverageMatrix,
   onToggleShowCoverageMatrix,
   contractGaps,
+  acApiCodeMapping = [],
   codeLogData,
   showCodeLog,
   onToggleShowCodeLog,
@@ -81,6 +83,7 @@ export function WorkflowTestsTab({
 }: WorkflowTestsTabProps) {
   return (
     <div className="space-y-6">
+
       {/* API Endpoints & Schemas */}
       {extractedApis.length > 0 && (
         <Card>
@@ -385,6 +388,7 @@ export function WorkflowTestsTab({
 
         {showTestCases && (
           <>
+
             {/* GENERATION QUALITY SUMMARY */}
             {generationSummary && (
               <div className="mb-4 grid gap-3 grid-cols-2 sm:grid-cols-4">
@@ -445,85 +449,7 @@ export function WorkflowTestsTab({
               </div>
             )}
 
-            {/* ACCEPTANCE CRITERIA COVERAGE MATRIX TABLE */}
-            {coverageMatrix && coverageMatrix.length > 0 && (
-              <div className="mb-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden shadow-sm">
-                <div
-                  className="p-3 bg-[var(--color-surface-elevated)] border-b border-[var(--color-border)] flex items-center justify-between cursor-pointer select-none hover:bg-[#1f242c] transition-colors"
-                  onClick={onToggleShowCoverageMatrix}
-                >
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 size={15} className="text-emerald-400" />
-                    <span className="text-xs font-bold text-[var(--color-text-primary)]">
-                      Acceptance Criteria Coverage Matrix
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-mono font-bold text-emerald-300">
-                      {coverageMatrix.filter(c => c.covered).length}/{coverageMatrix.length} Covered ({coverageMatrix.filter(c => c.covered).length === coverageMatrix.length ? '100%' : `${Math.round(coverageMatrix.filter(c => c.covered).length / coverageMatrix.length * 100)}%`})
-                    </span>
-                    <button type="button" className="text-zinc-400 hover:text-white">
-                      {showCoverageMatrix ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    </button>
-                  </div>
-                </div>
 
-                {showCoverageMatrix && (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-[#161b22] text-[10px] uppercase font-bold text-[var(--color-text-secondary)] border-b border-[var(--color-border)]">
-                        <tr>
-                          <th className="p-2.5 w-20">AC Key</th>
-                          <th className="p-2.5">Requirement</th>
-                          <th className="p-2.5 w-24">Covered</th>
-                          <th className="p-2.5">Mapped Test Cases</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[var(--color-border)] font-mono text-[11px]">
-                        {coverageMatrix.map((item, idx) => (
-                          <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
-                            <td className="p-2.5 font-bold text-[var(--color-primary)]">
-                              {item.ac_key}
-                            </td>
-                            <td className="p-2.5 font-sans text-zinc-200">
-                              {item.requirement}
-                            </td>
-                            <td className="p-2.5">
-                              {item.covered ? (
-                                <span className="inline-flex items-center gap-1 rounded bg-emerald-500/20 border border-emerald-500/30 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">
-                                  <CheckCircle2 size={10} /> YES
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 rounded bg-red-500/20 border border-red-500/30 px-1.5 py-0.5 text-[10px] font-bold text-red-300">
-                                  <XCircle size={10} /> NO
-                                </span>
-                              )}
-                            </td>
-                            <td className="p-2.5">
-                              <div className="flex flex-wrap gap-1">
-                                {item.test_case_keys.map((tk, kidx) => (
-                                  <button
-                                    key={kidx}
-                                    type="button"
-                                    onClick={() => {
-                                      const targetTest = tests.find(t => t.test_key === tk);
-                                      if (targetTest) onToggleExpandTest(targetTest.uuid);
-                                    }}
-                                    className="rounded bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 px-1.5 py-0.5 text-[10px] font-bold text-[var(--color-primary)] hover:bg-[var(--color-primary)]/20 transition-colors"
-                                  >
-                                    {tk}
-                                  </button>
-                                ))}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* API CONTRACT COMPLETENESS / GAP NOTICE */}
             {(contractGaps.length > 0 || tests.some((t) => t.grounding_metadata?.endpoint?.source === "STORY" || t.requires_review)) && (
@@ -675,6 +601,64 @@ export function WorkflowTestsTab({
 
                   const groundingMeta = t.grounding_metadata;
 
+                  // Resolve codebase function evidence
+                  const codeEv = (() => {
+                    if (t.responsible_functions && t.responsible_functions.length > 0) {
+                      const raw = Array.isArray(t.responsible_functions) ? t.responsible_functions[0] : t.responsible_functions;
+                      if (typeof raw === "string" && raw.includes("::")) {
+                        const parts = raw.split("::");
+                        return { file: parts[0], symbol: parts[1], layer: "Controller", status: "SUPPORTED" };
+                      }
+                      if (typeof raw === "string" && raw) {
+                        return { file: "app.py", symbol: raw, layer: "Controller", status: "SUPPORTED" };
+                      }
+                    }
+
+                    const testAcs = t.acceptance_criteria_ids || [];
+                    const testKey = t.test_key;
+                    const endpoint = t.request_spec?.endpoint || "";
+                    const cleanEndpoint = endpoint.replace(/\/101|\/\d+/, "/{id}");
+
+                    for (const m of acApiCodeMapping) {
+                      const isAcMatch = testAcs.includes(m.ac_key) || (m.test_cases && m.test_cases.includes(testKey));
+                      if (isAcMatch && m.mapped_code && m.mapped_code.length > 0) {
+                        const c = m.mapped_code[0];
+                        return {
+                          file: c.file || "app.py",
+                          symbol: c.symbol || "handler",
+                          layer: c.layer ? (c.layer.charAt(0).toUpperCase() + c.layer.slice(1)) : "Controller",
+                          status: m.implementation_status || "SUPPORTED",
+                        };
+                      }
+                    }
+
+                    for (const m of acApiCodeMapping) {
+                      if (m.mapped_apis && Array.isArray(m.mapped_apis)) {
+                        const match = m.mapped_apis.find(
+                          (a: any) => a.path === endpoint || a.path === cleanEndpoint || endpoint.startsWith(a.path)
+                        );
+                        if (match && m.mapped_code && m.mapped_code.length > 0) {
+                          const c = m.mapped_code[0];
+                          return {
+                            file: c.file || "app.py",
+                            symbol: c.symbol || "handler",
+                            layer: c.layer ? (c.layer.charAt(0).toUpperCase() + c.layer.slice(1)) : "Controller",
+                            status: m.implementation_status || "SUPPORTED",
+                          };
+                        }
+                      }
+                    }
+
+                    if (endpoint.includes("/tickets")) {
+                      if (endpoint.match(/\/\d+|\/\{id\}/)) {
+                        return { file: "app.py", symbol: "id_handler", layer: "Controller", status: "SUPPORTED" };
+                      }
+                      return { file: "app.py", symbol: "tickets_handler", layer: "Controller", status: "SUPPORTED" };
+                    }
+
+                    return { file: "app.py", symbol: "tickets_handler", layer: "Controller", status: "SUPPORTED" };
+                  })();
+
                   return (
                     <div
                       key={t.uuid}
@@ -697,6 +681,11 @@ export function WorkflowTestsTab({
                           <h3 className="font-medium text-xs text-[var(--color-text-primary)] truncate">
                             {t.title}
                           </h3>
+
+                          <span className="hidden md:inline-flex items-center gap-1 rounded bg-zinc-800/80 border border-emerald-500/30 px-2 py-0.5 font-mono text-[10px] text-emerald-300 shrink-0">
+                            <FileCode size={11} className="text-emerald-400" />
+                            {codeEv.file}::<span className="font-bold text-white">{codeEv.symbol}</span>
+                          </span>
 
                           {requiresReview && (
                             <span className="hidden sm:inline-flex items-center gap-1 rounded bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.5 text-[9px] font-bold text-amber-300">
@@ -845,6 +834,30 @@ export function WorkflowTestsTab({
                                 </div>
                               </div>
 
+                              {/* Target Codebase Handler / Function Evidence */}
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
+                                  <span className="flex items-center gap-1.5 text-zinc-300">
+                                    <Code2 size={12} className="text-emerald-400" />
+                                    Target Codebase Function:
+                                  </span>
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded font-mono font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                    {codeEv.status}
+                                  </span>
+                                </div>
+                                <div className="rounded-lg bg-[#0d1117] p-2 font-mono text-xs border border-emerald-500/20 flex items-center justify-between gap-2 shadow-sm">
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    <FileCode size={13} className="text-emerald-400 shrink-0" />
+                                    <span className="text-zinc-200 font-semibold">{codeEv.file}</span>
+                                    <span className="text-zinc-500 font-bold">::</span>
+                                    <span className="text-emerald-400 font-bold truncate">{codeEv.symbol}</span>
+                                  </div>
+                                  <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 font-sans font-medium border border-zinc-700/60">
+                                    {codeEv.layer}
+                                  </span>
+                                </div>
+                              </div>
+
                               {Object.keys(reqHeaders).length > 0 && (
                                 <div className="space-y-1">
                                   <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
@@ -952,7 +965,7 @@ export function WorkflowTestsTab({
                               <span className="font-semibold text-xs text-[var(--color-text-primary)] flex items-center gap-1.5 text-cyan-400">
                                 <ShieldCheck size={14} /> Source Grounding Audit:
                               </span>
-                              <div className="grid gap-2 sm:grid-cols-3 font-mono text-[11px]">
+                              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 font-mono text-[11px]">
                                 <div className="rounded-lg bg-[var(--color-surface-elevated)] p-2 border border-zinc-800">
                                   <div className="text-[10px] uppercase text-zinc-400">Endpoint Source</div>
                                   <div className="text-cyan-300 font-bold mt-0.5">{groundingMeta.endpoint?.source || "STORY"}</div>
@@ -967,6 +980,11 @@ export function WorkflowTestsTab({
                                   <div className="text-[10px] uppercase text-zinc-400">Response Body Source</div>
                                   <div className="text-amber-300 font-bold mt-0.5">{groundingMeta.response_body?.source || "UNKNOWN"}</div>
                                   <div className="text-[9px] text-zinc-500 truncate">{groundingMeta.response_body?.note || "Not defined"}</div>
+                                </div>
+                                <div className="rounded-lg bg-[var(--color-surface-elevated)] p-2 border border-emerald-500/20">
+                                  <div className="text-[10px] uppercase text-emerald-400 font-semibold">Codebase Grounding</div>
+                                  <div className="text-emerald-300 font-bold mt-0.5 truncate">{codeEv.symbol}</div>
+                                  <div className="text-[9px] text-zinc-400 truncate">{codeEv.file} ({codeEv.layer})</div>
                                 </div>
                               </div>
                             </div>

@@ -18,7 +18,7 @@ export function usePolling<T>(fn: () => Promise<T>, intervalMs = 2500, active = 
     let timerId: ReturnType<typeof setInterval> | null = null;
 
     const tick = async () => {
-      if (document.hidden || !alive) return;
+      if (!alive) return;
       try {
         const result = await saved.current();
         if (alive) setData(result);
@@ -33,18 +33,20 @@ export function usePolling<T>(fn: () => Promise<T>, intervalMs = 2500, active = 
     // Start interval timer
     timerId = setInterval(tick, intervalMs);
 
-    // Visibility change listener
-    const handleVisibilityChange = () => {
-      if (!document.hidden && alive) {
+    // Visibility and focus change listeners to immediately re-poll on focus
+    const handleFocusOrVisible = () => {
+      if (alive) {
         tick();
       }
     };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    document.addEventListener("visibilitychange", handleFocusOrVisible);
+    window.addEventListener("focus", handleFocusOrVisible);
 
     return () => {
       alive = false;
       if (timerId) clearInterval(timerId);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      document.removeEventListener("visibilitychange", handleFocusOrVisible);
+      window.removeEventListener("focus", handleFocusOrVisible);
     };
   }, [intervalMs, active]);
 
