@@ -148,15 +148,63 @@ export function WorkflowCoverageTab({
               <span className="text-[10px] font-mono text-emerald-300">pytest-cov Verified</span>
             </div>
             <div className="flex flex-wrap gap-2">
-              {stateRealCoverage.covered_files.map((f: string, fidx: number) => (
-                <span
-                  key={fidx}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-mono text-emerald-300"
-                >
-                  <FileText size={12} />
-                  <span>{f}</span>
-                </span>
-              ))}
+              {stateRealCoverage.covered_files.map((f: any, fidx: number) => {
+                const filePath = typeof f === "string" ? f : (f?.relative_path || f?.file_path || "source_file.py");
+                const lineCov = typeof f === "object" && f?.line_coverage_pct != null ? `${f.line_coverage_pct}%` : null;
+                const branchCov = typeof f === "object" && f?.branch_coverage_pct != null ? `${f.branch_coverage_pct}%` : null;
+                const stmts = typeof f === "object" && f?.num_statements != null ? `${f.num_statements - (f.num_missing || 0)}/${f.num_statements} stmts` : null;
+
+                return (
+                  <span
+                    key={fidx}
+                    className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-mono text-emerald-300"
+                  >
+                    <FileText size={13} className="text-emerald-400" />
+                    <span className="font-semibold text-emerald-200">{filePath}</span>
+                    {lineCov && (
+                      <span className="rounded bg-emerald-500/20 border border-emerald-500/40 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">
+                        {lineCov} Line
+                      </span>
+                    )}
+                    {branchCov && (
+                      <span className="rounded bg-blue-500/20 border border-blue-500/40 px-1.5 py-0.5 text-[10px] font-bold text-blue-300">
+                        {branchCov} Branch
+                      </span>
+                    )}
+                    {stmts && (
+                      <span className="text-[10px] text-emerald-400/80 font-sans">
+                        ({stmts})
+                      </span>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Uncovered Source Files (if any) */}
+        {stateRealCoverage?.uncovered_files && stateRealCoverage.uncovered_files.length > 0 && (
+          <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/5 p-4 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-red-400 uppercase tracking-wide">
+                Uncovered / Unexecuted Files ({stateRealCoverage.uncovered_files.length})
+              </span>
+              <span className="text-[10px] font-mono text-red-300">0% Coverage</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {stateRealCoverage.uncovered_files.map((f: any, fidx: number) => {
+                const filePath = typeof f === "string" ? f : (f?.relative_path || f?.file_path || "uncovered_file.py");
+                return (
+                  <span
+                    key={fidx}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-xs font-mono text-red-300"
+                  >
+                    <FileText size={12} />
+                    <span>{filePath}</span>
+                  </span>
+                );
+              })}
             </div>
           </div>
         )}
